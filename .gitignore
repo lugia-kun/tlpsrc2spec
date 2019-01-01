@@ -1,0 +1,14 @@
+/docs/
+/lib/
+/bin/
+/.shards/
+*.dwarf
+
+# General backup files
+*~
+*.bak
+\#*#
+
+# database for test
+test.db
+

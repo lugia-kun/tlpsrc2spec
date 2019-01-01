@@ -1,0 +1,13 @@
+name: tlpsrc2spec
+version: 0.1.0
+
+authors:
+  - Hajime Yoshimori <lugia.kun@gmail.com>
+
+targets:
+  tlpsrc2spec:
+    main: src/tlpsrc2spec.cr
+
+crystal: 0.27.0
+
+license: MIT
