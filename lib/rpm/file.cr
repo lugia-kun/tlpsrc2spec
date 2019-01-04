@@ -1,4 +1,3 @@
-
 module RPM
   class File
     property path : String
