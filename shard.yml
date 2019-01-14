@@ -11,3 +11,9 @@ targets:
 crystal: 0.27.0
 
 license: MIT
+
+dependencies:
+  rpm:
+    github: lugia-kun/crystal-rpm
+    branch: master
+
