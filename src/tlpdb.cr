@@ -1,3 +1,5 @@
+require "./strcase.cr"
+
 module TLpsrc2spec
   class TLPDB
     class Error < Exception
@@ -10,27 +12,41 @@ module TLpsrc2spec
       property path : String
       property details : String?
       property language : String?
-      property arch : String?
 
       def initialize(@path, **info)
         @details = info[:details]?
         @language = info[:language]?
-        @arch = info[:arch]?
-      end
-
-      def initislize(@path, info : Hash(String, String) = {} of String => String)
-        @detail = info["details"]?
-        @langage = info["language"]?
-        @arch = info["arch"]?
       end
     end
 
-    class Files < Array(PathInfo)
-      property size : Int32
+    class Files
+      getter files : Set(PathInfo)
+      property filesize : Int32
       property arch : String?
 
-      def initialize(files : Array(PathInfo), @size = 0, @arch = nil)
-        super(*files)
+      include Enumerable(PathInfo)
+      include Iterable(PathInfo)
+
+      def initialize(@files, @filesize = 0, @arch = nil)
+      end
+
+      def initialize(@filesize = 0, @arch = nil, &block)
+        @files = Set(PathInfo).new
+        yield @files
+      end
+
+      def each(&block : PathInfo -> _)
+        @files.each do |info|
+          yield info
+        end
+      end
+
+      def each
+        @files.each
+      end
+
+      def empty?
+        @files.empty?
       end
     end
 
@@ -41,7 +57,8 @@ module TLpsrc2spec
     WORDS_TAGS = %w[catalogue-topics catalogue-also depend]
 
     # List of tags which stores a integer data
-    INTEGER_TAGS = %w[revision]
+    INTEGER_TAGS = %w[revision relocated
+      containersize doccontainersize srccontainersize]
 
     # List of tags which stores a time data
     TIME_TAGS = %w[catalogue-date]
@@ -51,7 +68,8 @@ module TLpsrc2spec
       catalogue-license catalogue-version catalogue-contact-home
       catalogue-contact-repository catalogue-contact-announce
       catalogue-contact-bugs catalogue-contact-development
-      catalogue-contact-support catalogue-alias]
+      catalogue-contact-support catalogue-alias
+      containerchecksum doccontainerchecksum srccontainerchecksum]
 
     # List of tags which builds a multi-line string from each occurances.
     LONG_TAGS = %w[longdesc]
@@ -199,160 +217,8 @@ module TLpsrc2spec
     end
 
     class Parser
-      class Buffer < IO::Memory
-        @io : IO?
-        property lexeme : Int32 = -1
-        property token : Int32 = -1
-        property marker : Int32 = -1
-        getter limit : Int32 = 0
-        getter line : Int32 = 1
-        getter column : Int32 = 0
-        getter lastchar : Char = '\u{0}'
-        @capacity : Int32
-        @eof : Int32 = -1
-
-        def initialize(@io : IO, @capacity : Int32 = 64)
-          super(@capacity)
-        end
-
-        def fill(nbytes : Int, keep : Int = -1) : Int
-          io = @io
-          return keep if io.nil?
-          return keep if @eof >= 0
-          lexeme = keep
-          lexeme = @token if lexeme < 0 || @token < keep
-          lexeme = @marker if lexeme < 0 || @marker < keep
-          lexeme = self.pos if lexeme < 0 || self.pos < keep
-          if lexeme > 0
-            nlp = (lexeme - 1).downto(0).each do |i|
-              if self.buffer[i] == '\n'.ord
-                break i
-              end
-            end
-            if nlp && nlp != 0
-              lexeme = nlp + 1
-            end
-            rem = String.new(self[0...lexeme])
-            rem.each_char do |ch|
-              if ch == '\n'
-                @line += 1
-                @column = 0
-              else
-                @column += 1
-              end
-            end
-
-            cut = self[lexeme...@limit]
-            cut.move_to(self.buffer, cut.size)
-            self.pos -= lexeme
-            @token -= lexeme if @token >= 0
-            @marker -= lexeme if @marker >= 0
-            @limit -= lexeme
-            keep -= lexeme
-          end
-          nspace = @capacity
-          sz = self.size
-          nspace = sz if sz > nspace
-          nspace -= @limit if @limit > 0
-          if nspace < nbytes
-            nspace = nbytes
-          else
-            nbytes = nspace
-          end
-          nread = 0
-          if @eof < 0
-            pos = self.pos
-            begin
-              self.pos = @limit
-              nread = IO.copy(io, self, nspace)
-            ensure
-              self.pos = pos
-            end
-            if nread < nspace
-              @eof = nread + @limit
-            end
-          end
-          if nread < nbytes
-            (nread...nbytes).each do |i|
-              self.buffer[i] = 0
-            end
-          end
-          if nread > 0
-            @limit += nread
-          end
-          keep
-        end
-
-        def peek_char
-          pos = self.pos
-          begin
-            read_char
-          ensure
-            self.pos = pos
-          end
-        end
-
-        def cursor
-          self.pos
-        end
-
-        def cursor=(n : Int32)
-          self.pos = n
-        end
-
-        def [](range : Range(Int32, Int32))
-          n = range.end - range.begin
-          if !range.exclusive?
-            n += 1
-          end
-          Slice.new(self.buffer + range.begin, n)
-        end
-
-        def token_slice
-          if @token < 0
-            nil
-          else
-            self[@token...self.pos]
-          end
-        end
-
-        def eof?
-          @eof >= 0 && self.pos >= @eof
-        end
-
-        def debug_cursor
-          str = String.new(self.buffer, @limit)
-          lines = str.split(/\n/)
-          lsz = lines.size + @line
-          lwid = 0
-          while lsz > 0
-            lwid += 1
-            lsz /= 10
-          end
-          cursor = self.pos
-          String.build do |str|
-            lines.each_with_index do |s, i|
-              str << " %*d: %s\n" % { lwid, i + @line, s }
-              if cursor >= 0 && cursor < s.size
-                str << " "
-                lwid.times do
-                  str << " "
-                end
-                str << "  "
-                (cursor - 1).times do
-                  str << "~"
-                end
-                str << "^\n"
-                cursor = -1
-              else
-                cursor -= s.size + 1
-              end
-            end
-          end
-        end
-      end
-
-      @buf : Buffer
+      @db : TLPDB
+      @buf : StringCase::Buffer
       @lexeme : Int32 = -1
       {% begin %}
       @pkg_data_buffer : NamedTuple(
@@ -378,16 +244,16 @@ module TLpsrc2spec
       }
       {% end %}
 
-      def initialize(io : IO, bytesize : Int = 32)
-        @buf = Buffer.new(io, bytesize)
+      def initialize(io : IO, @db, bytesize : Int = 32)
+        @buf = StringCase::Buffer.new(io, bytesize)
       end
 
-      def initialize(buf : IO::Memory)
-        @buf = Buffer.new(buf)
+      def initialize(buf : IO::Memory, @db)
+        @buf = StringCase::Buffer.new(buf)
       end
 
-      def initialize(buf : Bytes)
-        @buf = Buffer.new(buf)
+      def initialize(buf : Bytes, @db)
+        @buf = StringCase::Buffer.new(buf)
       end
 
       private def fill(n : Int) : Nil
@@ -398,126 +264,12 @@ module TLpsrc2spec
         @buf.eof?
       end
 
-      private def peek_char : Char
-        ch = @buf.peek_char
-        if ch.nil? || ch == '\u{0}' || ch == Char::REPLACEMENT
-          if !@buf.eof?
-            @buf.fill(4, @lexeme)
-            ch = @buf.peek_char
-          end
-        end
-        raise IO::EOFError.new if ch.nil?
-        ch
-      end
-
-      private def next_char : Char
-        ch = @buf.read_char
-        if ch.nil? || ch == '\u{0}' || ch == Char::REPLACEMENT
-          if !@buf.eof?
-            @buf.fill(4, @lexeme)
-            ch = @buf.read_char
-          end
-        end
-        raise IO::EOFError.new if ch.nil?
-        ch
-      end
-
-      private def cursor
-        @buf.cursor
-      end
-
-      private def marker
-        @buf.marker
-      end
-
-      macro make_recursive_case(cursor, marker, save_mark, depth, *lists)
-        {% m = {} of CharLiteral => ArrayLiteral %}
-        {% has_end_here = nil %}
-        {% not_matched = nil %}
-        {% for x in lists %}
-          {% str = x[0] %}
-          {% if str.is_a?(StringLiteral) %}
-            {% if str.size == depth %}
-              {% has_end_here = x[1] %}
-            {% else %}
-              {% ch = str.chars[depth] %}
-              {% if m[ch].is_a?(NilLiteral) %}
-                {% m[ch] = [x] %}
-              {% else %}
-                {% m[ch] << x %}
-              {% end %}
-            {% end %}
-          {% else %}
-            {% not_matched = x[1] %}
-          {% end %}
-        {% end %}
-        {% if not_matched %}
-          {% for ch, data in m %}
-            {% m[ch] << {nil, not_matched} %}
-          {% end %}
-        {% end %}
-        {% if has_end_here && lists.size == (not_matched ? 2 : 1) %}
-          {{ has_end_here.id }}
-        {% else %}
-          {% if has_end_here %}
-            yych = peek_char
-          {% else %}
-            yych = next_char
-          {% end %}
-            case yych
-                {% for c in m.keys %}
-                when {{c}}
-                  {% if save_mark %}
-                {{marker}} = {{cursor}}
-                  {% end %}
-                  {% if has_end_here %}
-                    next_char
-                  {% end %}
-                  make_recursive_case({{cursor}}, {{marker}}, false, {{depth + 1}}, {{m[c].splat}})
-                {% end %}
-                {% if has_end_here %}
-                else
-                  {{ has_end_here.id }}
-                {% else %}
-                else
-                  {% if depth > 0 %}
-              {{ cursor }} = {{ marker }}
-                  {% end %}
-                  {% if not_matched %}
-              {{ not_matched.id }}
-                  {% end %}
-                {% end %}
-            end
-        {% end %}
-      end
-
-      macro strcase(case_stmt)
-        {% if !case_stmt.is_a?(Case) %}
-          {% raise "case_stmt must be Case statement" %}
-        {% end %}
-        {% whens = case_stmt.whens %}
-        {% not_matched = case_stmt.else %}
-        {% lists = [] of Tuple(NilLiteral | StringLiteral | ASTNode) %}
-        {% for w in whens %}
-          {% for c in w.conds %}
-            {% if !c.is_a?(StringLiteral) %}
-              {% raise "conditionals must be a literal string" %}
-            {% end %}
-            {% lists << {c, "#{w.body}"} %}
-          {% end %}
-        {% end %}
-        {% if !not_matched.is_a?(Nop) %}
-          {% lists << {nil, "#{not_matched}"} %}
-        {% end %}
-        make_recursive_case(cursor, marker, true, 0, {{lists.splat}})
-      end
-
       def parse
         fill(@buf.bytesize)
         while !eof?
           {% begin %}
-            strcase \
-              case yych
+            StringCase.strcase \
+              case @buf
                   {% for name, val in ALL_TAGS_DATA %}
                   when {{name + " "}}
                     process_{{val[:type].id}}({{val[:var_symbol]}})
@@ -531,15 +283,19 @@ module TLpsrc2spec
           {% end %}
         end
         add_package
+        @db
       end
 
       def get_rest_line
         @buf.token = @buf.cursor
-        while (ch = next_char) == ' '
-          @buf.token = @buf.cursor
-        end
-        while (ch = next_char) != '\n'
-          # NOP
+        begin
+          while (ch = @buf.next_char) == ' '
+            @buf.token = @buf.cursor
+          end
+          while (ch = @buf.next_char) != '\n'
+            # NOP
+          end
+        rescue IO::EOFError
         end
         slice = @buf.token_slice
         if slice.nil?
@@ -550,35 +306,73 @@ module TLpsrc2spec
         @buf.token = -1
       end
 
-      private def add_package
-        hsh = {} of Symbol => (Array(String) | String | Int32 | Time | Files | Nil)
-        @pkg_data_buffer.each do |key, val|
-          tag = Tag.from_symbol(key)
-          if val.is_a?(IO::Memory)
-            if val.size == 0
-              data = nil
-            else
-              data = String.new(val.buffer, val.size)
-              if tag.single?
-                data = data.chomp
-              elsif tag.integer?
-                data = data.to_i32
-              elsif tag.time?
-                data = Time.parse!(data.chomp, "%Y-%m-%d %H:%M:%S %z")
-              end
-            end
-          elsif val.is_a?(Hash(String?, Hash(String, String)?))
-            if val.size == 0
-              data = nil
-            else
-              data = nil
-            end
-          else
-            data = val
-          end
-          hsh[key] = data
+      private def get_single_data(data : IO::Memory)
+        if data.size > 0
+          String.new(data.buffer, data.size).chomp
         end
-        pp hsh
+      end
+
+      private def get_long_data(data : IO::Memory)
+        if data.size > 0
+          String.new(data.buffer, data.size)
+        end
+      end
+
+      private def get_time_data(data : IO::Memory)
+        if data.size > 0
+          Time.parse!(String.new(data.buffer, data.size),
+            "%Y-%m-%d %H:%M:%S %z")
+        end
+      end
+
+      private def get_integer_data(data : IO::Memory)
+        if data.size > 0
+          String.new(data.buffer, data.size).to_i32
+        end
+      end
+
+      private def get_list_data(data : Array(String))
+        data.dup # Create a shallow copy (because `data` will be cleared)
+      end
+
+      private def get_words_data(data : Array(String))
+        get_list_data(data)
+      end
+
+      private def get_files_data(data : Hash(String?, Hash(String, String)?))
+        arch = nil
+        size = 0
+        global_info = data[nil]?
+        if global_info
+          if global_info.has_key?("size")
+            size = global_info["size"].to_i
+          end
+          arch = global_info["arch"]?
+        end
+
+        Files.new(size, arch) do |lst|
+          data.each do |path, info|
+            next if path.nil?
+            if info
+              lst << PathInfo.new(path,
+                details: info["details"]?,
+                language: info["language"]?)
+            else
+              lst << PathInfo.new(path)
+            end
+          end
+        end
+      end
+
+      private def add_package
+        {% begin %}
+          data = {
+            {% for name, val in ALL_TAGS_DATA %}
+              {{val[:var_symbol].id}}: get_{{val[:type].id}}_data(@pkg_data_buffer[{{val[:var_symbol]}}]),
+            {% end %}
+          }
+          @db.add_package(Package.new(**data))
+        {% end %}
       end
 
       private def new_package
@@ -615,7 +409,7 @@ module TLpsrc2spec
         instr = false
         @buf.token = @buf.cursor
         while !@buf.eof?
-          ch = next_char
+          ch = @buf.next_char
           case ch
           when ' ', '\n'
             if !instr
@@ -676,17 +470,17 @@ module TLpsrc2spec
           lst[nil] = entries
         end
         while !@buf.eof?
-          ch = peek_char
+          ch = @buf.peek_char
           if ch != ' '
             break
           end
-          next_char
+          @buf.next_char
           @buf.token = @buf.cursor
-          while !@buf.eof? && (ch = next_char) == ' '
+          while !@buf.eof? && (ch = @buf.next_char) == ' '
             @buf.token = @buf.cursor
           end
           break if @buf.eof?
-          while !@buf.eof? && (ch = next_char)
+          while !@buf.eof? && (ch = @buf.next_char)
             break if ch == ' ' || ch == '\n'
           end
           slice = @buf.token_slice
@@ -725,10 +519,205 @@ module TLpsrc2spec
       end
     end
 
+    @db : Hash(String, Package) = {} of String => Package
 
+    def [](name : String)
+      @db[name]
+    end
 
+    def []?(name : String)
+      @db[name]?
+    end
+
+    include Enumerable(Package)
+
+    def each(&block)
+      @db.each_value { |pkg| yield pkg }
+    end
+
+    enum ArrayQuery
+      All = 1100
+      Any = 1101
+    end
+
+    enum ValueQuery
+      LT         = 1
+      LE         = 2
+      GT         = 3
+      GE         = 4
+      EQ         = 5
+      NE         = 6
+      StartsWith = 7
+      EndsWith   = 8
+
+      Less         = LT
+      LessEqual    = LE
+      Greater      = GT
+      GreaterEqual = GE
+      Equal        = EQ
+      NotEqual     = NE
+    end
+
+    enum FileQuery
+      Exact     = 100 # Matches to fullpath
+      BaseName  = 101 # Matches basename of each paths.
+      Directory = 102 # Matches any directory name.
+      Path      = 103 # Matches to begginning path
+      LastPath  = 104 # Matches to trailing path (does not include filename)
+    end
+
+    private def compare_data(data, query, mode : ValueQuery)
+      case mode
+      when ValueQuery::EQ
+        data == query
+      when ValueQuery::LE
+        data <= query
+      when ValueQuery::GE
+        data >= query
+      when ValueQuery::GT
+        data > query
+      when ValueQuery::LT
+        data < query
+      when ValueQuery::NE
+        data != query
+      else
+        false
+      end
+    end
+
+    private def query_single_data(data : String, query : String,
+                                  mode : ValueQuery = ValueQuery::EQ)
+      case mode
+      when ValueQuery::StartsWith
+        data.starts_with?(query)
+      when ValueQuery::EndsWith
+        data.ends_with?(query)
+      else
+        compare_data(data, query, mode)
+      end
+    end
+
+    private def query_single_data(data : String, query : Regex)
+      data =~ query
+    end
+
+    private def query_single_data(data : String,
+                                  query : Tuple(ValueQuery, String))
+      query_single_data(data, query[1], query[0])
+    end
+
+    private def query_long_data(*args)
+      query_single_data(*args)
+    end
+
+    private def query_integer_data(data : Int, query : Int,
+                                   mode : ValueQuery = ValueQuery::EQ)
+      compare_data(data, query, mode)
+    end
+
+    private def query_integer_data(data : Int, query : Range(Int, Int))
+      query.includes?(data)
+    end
+
+    private def query_integer_data(data : Int,
+                                   query : Tuple(ValueQuery, Int32))
+      query_integer_data(data, query[1], query[0])
+    end
+
+    private def qeury_list_data(data : Array(String),
+                                query : Array(String),
+                                amode : ArrayQuery = ArrayQuery::All,
+                                vmode : ValueQeury = ValueQeury::EQ)
+      case amode
+      when ArrayQuery::All
+        data.zip(query).all? do |a, b|
+          query_single_data(a, b, vmode)
+        end
+      when ArrayQuery::Any
+        data.zip(query).any? do |a, b|
+          query_single_data(a, b, vmode)
+        end
+      else
+        false
+      end
+    end
+
+    private def query_words_data(*args)
+      qeury_list_data(*args)
+    end
+
+    private def query_files_path_comp(path : String, query : String,
+                                      vmode : ValueQuery, fmode : FileQuery)
+      case fmode
+      when FileQuery::Exact
+        query_single_data(path, query, vmode)
+      when FileQuery::BaseName
+        query_single_data(File.basename(path), query, vmode)
+      when FileQuery::Directory
+        path.split("/").any? do |dir|
+          query_single_data(dir, query, vmode)
+        end
+      when FileQuery::Path
+        path.starts_with?(query)
+      when FileQuery::LastPath
+        File.dirname(path).ends_with?(query)
+      else
+        false
+      end
+    end
+
+    private def query_files_data(data : Files, query : String | Regex,
+                                 amode : ArrayQuery = ArrayQuery::Any,
+                                 vmode : ValueQuery = ValueQuery::EQ,
+                                 fmode : FileQuery = FileQuery::BaseName)
+      if amode == ArrayQuery::Any
+        data.any? do |x|
+          query_files_path_comp(x.path, query, vmode, fmode)
+        end
+      else
+        data.all? do |x|
+          query_files_path_comp(x.path, query, vmode, fmode)
+        end
+      end
+    end
+
+    private def query_files_data(data : Files, query : Regex)
+      data.any? { |x| x.path =~ query }
+    end
+
+    def [](**query) : Array(Package)
+      arr = nil
+      {% for name, val in ALL_TAGS_DATA %}
+        {% tstr = val[:data_type].stringify %}
+        {% array = (tstr =~ /Array(.*)|Files/) %}
+        if (q = query[{{val[:var_symbol]}}]?)
+          if arr.nil?
+            arr = @db.values
+          end
+          arr.reject! do |x|
+            data = x.{{val[:var_symbol].id}}
+            next true if data.nil?
+            next true if data.responds_to?(:empty?) && data.empty?
+            !query_{{val[:type].id}}_data(data, q)
+          end
+        end
+      {% end %}
+      if arr.nil?
+        [] of Package
+      else
+        arr
+      end
+    end
+
+    def add_package(pkg : Package)
+      name = pkg.name
+      raise "Package name not defined" if name.nil?
+      @db[name] = pkg
+    end
+
+    def self.parse(io : IO)
+      parser = Parser.new(io, TLPDB.new)
+      parser.parse
+    end
   end
 end
-
-psr = TLpsrc2spec::TLPDB::Parser.new(STDIN)
-psr.parse

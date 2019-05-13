@@ -6,7 +6,7 @@ authors:
 
 targets:
   tlpsrc2spec:
-    main: src/tlpsrc2spec.cr
+    main: src/main.cr
 
 crystal: 0.27.0
 
