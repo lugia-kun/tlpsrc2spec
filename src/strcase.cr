@@ -210,39 +210,24 @@ module StringCase
     end
   end
 
-  macro make_recursive_case(case_io, save_mark, depth, test_eof, *lists)
+  macro make_recursive_case(case_io, save_mark, depth, test_eof,
+                            accept, not_matched, *lists)
     {% m = {} of CharLiteral => ArrayLiteral %}
     {% has_end_here = nil %}
-    {% not_matched = nil %}
     {% for x in lists %}
       {% str = x[0] %}
-      {% if str.is_a?(StringLiteral) %}
-        {% if str.size == depth %}
-          {% has_end_here = x[1] %}
-        {% else %}
-          {% ch = str.chars[depth] %}
-          {% if m[ch].is_a?(NilLiteral) %}
-            {% m[ch] = [x] %}
-          {% else %}
-            {% m[ch] << x %}
-          {% end %}
-        {% end %}
+      {% if str.size == depth %}
+        {% has_end_here = x[1] %}
       {% else %}
-        {% not_matched = x[1] %}
-      {% end %}
-    {% end %}
-    {% if has_end_here && !test_eof %}
-      {% for ch, data in m %}
-        {% m[ch] << {nil, has_end_here} %}
-      {% end %}
-    {% else %}
-      {% if not_matched %}
-        {% for ch, data in m %}
-          {% m[ch] << {nil, not_matched} %}
+        {% ch = str.chars[depth] %}
+        {% if m[ch].is_a?(NilLiteral) %}
+          {% m[ch] = [x] %}
+        {% else %}
+          {% m[ch] << x %}
         {% end %}
       {% end %}
     {% end %}
-    {% if has_end_here && lists.size == (not_matched ? 2 : 1) %}
+    {% if has_end_here && lists.size == 1 %}
       {% if test_eof %}
         if {{case_io}}.peek_char.nil?
           {{case_io}}.marker = -1
@@ -252,7 +237,9 @@ module StringCase
             {{case_io}}.cursor = {{case_io}}.marker
             {{case_io}}.marker = -1
           {% end %}
-          {% if not_matched %}
+          {% if accept %}
+            {{ accept.id }}
+          {% elsif not_matched %}
             {{ not_matched.id }}
           {% end %}
         end
@@ -261,7 +248,7 @@ module StringCase
         {{ has_end_here.id }}
       {% end %}
     {% else %}
-      {% if has_end_here %}
+      {% if has_end_here && !test_eof %}
         yych = {{case_io}}.peek_char
       {% else %}
         yych = {{case_io}}.next_char
@@ -269,17 +256,17 @@ module StringCase
         case yych
             {% for c in m.keys %}
             when {{c}}
-              {% if has_end_here %}
-                {{case_io}}.next_char
-                {% if test_eof %}
+              {% if save_mark %}
+                {{case_io}}.marker = {{case_io}}.cursor
+              {% end %}
+              {% if has_end_here && !test_eof %}
+                {% if !save_mark %}
                 {{case_io}}.marker = {{case_io}}.cursor
                 {% end %}
+                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{has_end_here}}, {{not_matched}}, {{m[c].splat}})
               {% else %}
-                {% if save_mark %}
-                  {{case_io}}.marker = {{case_io}}.cursor
-                {% end %}
+                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, nil, {{not_matched}}, {{m[c].splat}})
               {% end %}
-              ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{m[c].splat}})
             {% end %}
         else
           {% if has_end_here %}
@@ -292,7 +279,9 @@ module StringCase
                   {{case_io}}.cursor = {{case_io}}.marker
                   {{case_io}}.marker = -1
                 {% end %}
-                {% if not_matched %}
+                {% if accept %}
+                  {{ accept.id }}
+                {% elsif not_matched %}
                   {{ not_matched.id }}
                 {% end %}
               end
@@ -305,7 +294,9 @@ module StringCase
               {{case_io}}.cursor = {{case_io}}.marker
               {{case_io}}.marker = -1
             {% end %}
-            {% if not_matched %}
+            {% if accept %}
+              {{ accept.id }}
+            {% elsif not_matched %}
               {{ not_matched.id }}
             {% end %}
           {% end %}
@@ -330,10 +321,13 @@ module StringCase
         {% lists << {c, "#{w.body}"} %}
       {% end %}
     {% end %}
-    {% if !not_matched.is_a?(Nop) %}
-      {% lists << {nil, "#{not_matched}"} %}
+    {% if not_matched.is_a?(Nop) %}
+      {% not_matched = nil %}
+    {% else %}
+      {% not_matched = "#{not_matched}" %}
     {% end %}
-    ::StringCase.make_recursive_case({{obj}}, true, 0, false, {{lists.splat}})
+    ::StringCase.make_recursive_case({{obj}}, true, 0, false, nil,
+                                     {{not_matched}}, {{lists.splat}})
   end
 
   macro strcase_complete(case_stmt)
@@ -352,9 +346,12 @@ module StringCase
         {% lists << {c, "#{w.body}"} %}
       {% end %}
     {% end %}
-    {% if !not_matched.is_a?(Nop) %}
-      {% lists << {nil, "#{not_matched}"} %}
+    {% if not_matched.is_a?(Nop) %}
+      {% not_matched = nil %}
+    {% else %}
+      {% not_matched = "#{not_matched}" %}
     {% end %}
-    ::StringCase.make_recursive_case({{obj}}, true, 0, true, {{lists.splat}})
+    ::StringCase.make_recursive_case({{obj}}, true, 0, true, nil,
+                                     {{not_matched}}, {{lists.splat}})
   end
 end
