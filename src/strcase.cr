@@ -211,7 +211,7 @@ module StringCase
   end
 
   macro make_recursive_case(case_io, save_mark, depth, test_eof,
-                            accept, not_matched, *lists)
+                            case_sensitive, accept, not_matched, *lists)
     {% m = {} of CharLiteral => ArrayLiteral %}
     {% has_end_here = nil %}
     {% for x in lists %}
@@ -255,7 +255,18 @@ module StringCase
       {% end %}
         case yych
             {% for c in m.keys %}
-            when {{c}}
+              {% if case_sensitive %}
+              when {{c}}
+              {% else %}
+                {% s = c.id.stringify %}
+                {% cup = s.upcase.chars[0] %}
+                {% cdn = s.upcase.downcase.chars[0] %}
+                {% if cup == cdn %}
+                when {{cup}}
+                {% else %}
+                when {{cup}}, {{cdn}}
+                {% end %}
+              {% end %}
               {% if save_mark %}
                 {{case_io}}.marker = {{case_io}}.cursor
               {% end %}
@@ -263,9 +274,9 @@ module StringCase
                 {% if !save_mark %}
                 {{case_io}}.marker = {{case_io}}.cursor
                 {% end %}
-                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{has_end_here}}, {{not_matched}}, {{m[c].splat}})
+                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{case_sensitive}}, {{has_end_here}}, {{not_matched}}, {{m[c].splat}})
               {% else %}
-                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, nil, {{not_matched}}, {{m[c].splat}})
+                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{case_sensitive}}, nil, {{not_matched}}, {{m[c].splat}})
               {% end %}
             {% end %}
         else
@@ -304,8 +315,7 @@ module StringCase
     {% end %}
   end
 
-  #
-  macro strcase(case_stmt)
+  macro strcase_base(test_eof, case_sensitive, case_stmt)
     {% if !case_stmt.is_a?(Case) %}
       {% raise "case_stmt must be Case statement" %}
     {% end %}
@@ -318,6 +328,9 @@ module StringCase
         {% if !c.is_a?(StringLiteral) %}
           {% raise "conditionals must be a literal string" %}
         {% end %}
+        {% if !case_sensitive %}
+          {% c = c.upcase %}
+        {% end %}
         {% lists << {c, "#{w.body}"} %}
       {% end %}
     {% end %}
@@ -326,32 +339,25 @@ module StringCase
     {% else %}
       {% not_matched = "#{not_matched}" %}
     {% end %}
-    ::StringCase.make_recursive_case({{obj}}, true, 0, false, nil,
+    ::StringCase.make_recursive_case({{obj}}, true, 0, {{test_eof}},
+                                     {{case_sensitive}}, nil,
                                      {{not_matched}}, {{lists.splat}})
   end
 
+  #
+  macro strcase(case_stmt)
+    ::StringCase.strcase_base(false, true, {{case_stmt}})
+  end
+
   macro strcase_complete(case_stmt)
-    {% if !case_stmt.is_a?(Case) %}
-      {% raise "case_stmt must be Case statement" %}
-    {% end %}
-    {% obj = case_stmt.cond %}
-    {% whens = case_stmt.whens %}
-    {% not_matched = case_stmt.else %}
-    {% lists = [] of Tuple(NilLiteral | StringLiteral | ASTNode) %}
-    {% for w in whens %}
-      {% for c in w.conds %}
-        {% if !c.is_a?(StringLiteral) %}
-          {% raise "conditionals must be a literal string" %}
-        {% end %}
-        {% lists << {c, "#{w.body}"} %}
-      {% end %}
-    {% end %}
-    {% if not_matched.is_a?(Nop) %}
-      {% not_matched = nil %}
-    {% else %}
-      {% not_matched = "#{not_matched}" %}
-    {% end %}
-    ::StringCase.make_recursive_case({{obj}}, true, 0, true, nil,
-                                     {{not_matched}}, {{lists.splat}})
+    ::StringCase.strcase_base(true, true, {{case_stmt}})
+  end
+
+  macro strcase_complete_case_insensitive(case_stmt)
+    ::StringCase.strcase_base(true, false, {{case_stmt}})
+  end
+
+  macro strcase_case_insensitive(case_stmt)
+    ::StringCase.strcase_base(false, false, {{case_stmt}})
   end
 end
