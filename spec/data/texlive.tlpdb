@@ -1,0 +1,29 @@
+name test
+category coll
+depend a b
+depend c
+depend d
+revision 1000
+catalogue-date 2019-01-01 01:00:00 +01:00
+binfiles size=1 arch=x86_64-linux
+ bin/tex
+
+name test2
+category coll
+longdesc foo blah blah
+longdesc bar
+longdesc baz
+shortdesc desc
+revision 100
+runfiles 
+ texmf/tex/latex/test/test.sty
+
+name bar
+category package
+revision 0
+catalogue-date 2019-01-01 01:00:00 +02:00
+runfiles 
+ texmf/tex/latex/bar/bar.sty
+docfiles 
+ texmf/doc/latex/bar/bar.pdf details="Documentation" language=en
+

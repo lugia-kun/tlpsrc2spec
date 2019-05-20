@@ -1,6 +1,7 @@
 require "./spec_helper"
+require "./test"
 
-DATA = <<-EOF
+TLPDB_DATA = <<-EOF
 name test
 category coll
 depend a b
@@ -35,7 +36,7 @@ EOF
 include TLpsrc2spec
 
 describe TLpsrc2spec::TLPDB do
-  io = IO::Memory.new(DATA)
+  io = IO::Memory.new(TLPDB_DATA)
   database = nil
 
   it "parses sample" do
@@ -125,5 +126,14 @@ describe TLpsrc2spec::DirectoryTree do
     tree["/foo/baz"]?.should be_nil
     tree["/foo/bar/baz"].class.should eq(FileNode)
     tree["/foo/bar/"].class.should eq(DirectoryNode)
+  end
+end
+
+describe TLpsrc2spec::Application do
+  it "can build a spec" do
+    app = TLpsrc2spec::Application.create(fixture("texlive.tlpdb"),
+                                          fixture("template.spec"),
+                                          fixture("installed.spec"))
+    app.main(TLpsrc2spec::TestRule)
   end
 end
