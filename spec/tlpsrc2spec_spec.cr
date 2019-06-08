@@ -130,10 +130,37 @@ describe TLpsrc2spec::DirectoryTree do
 end
 
 describe TLpsrc2spec::Application do
-  it "can build a spec" do
-    app = TLpsrc2spec::Application.create(fixture("texlive.tlpdb"),
-                                          fixture("template.spec"),
-                                          fixture("installed.spec"))
-    app.main(TLpsrc2spec::TestRule)
+  File.tempfile("test", ".spec") do |tmpfile|
+    it "can build a spec" do
+      app = TLpsrc2spec::Application.create(fixture("texlive.tlpdb"),
+                                            fixture("template.spec"),
+                                            fixture("installed.spec"))
+      app.main(tmpfile, TLpsrc2spec::TestRule)
+    end
+    tmpfile.flush
+    {% if flag?("show_generated_spec") %}
+      tmpfile.pos = 0
+      IO.copy(tmpfile, STDOUT)
+    {% end %}
+    specdata = RPM::Spec.open(tmpfile.path)
+
+    it "can generate proper spec" do
+      pkgs = specdata.packages
+      pkg_map = Hash(String, RPM::Package).new
+      pkgs.each do |pkg|
+        pkg_map[pkg.name] = pkg
+      end
+      pkg_map.has_key?("master").should be_true
+      pkg_map.has_key?("texlive-test").should be_true
+      pkg_map.has_key?("master-test").should be_true
+      master = pkg_map["master"]
+      tltest = pkg_map["texlive-test"]
+      mstest = pkg_map["master-test"]
+
+      #
+      master[RPM::Tag::Summary].should eq("Master Package")
+      master[RPM::Tag::Description].should eq("This is a description of the master package.\nTesting escapes: %{test}")
+      master[RPM::Tag::PostTrans].should eq("/sbin/ldconfig")
+    end
   end
 end

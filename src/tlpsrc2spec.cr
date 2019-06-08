@@ -8,6 +8,7 @@ require "./deptree"
 require "./strcase"
 require "./rule"
 require "./installed_database"
+require "./generator"
 
 # TODO: Write documentation for `Tlpsrc2spec`
 module TLpsrc2spec
@@ -25,14 +26,16 @@ module TLpsrc2spec
       color = :green
     end
     if color
-      io << severity.to_s.downcase.colorize(color) <<
-        ": ".colorize(color) << mesg.colorize(color)
+      io << String.build do |sb|
+        sb << severity.to_s.downcase
+        sb << ": "
+        sb << mesg
+      end.colorize(color)
     else
       io << severity.to_s.downcase << ": " << mesg
     end
   end
   LEVEL             = Logger::Severity::INFO
-  DEFAULT_RPM_GROUP = "Application/Publishing"
 
   PREFIX         = RPM["_prefix"]
   DATADIR        = RPM["_datadir"]
@@ -42,13 +45,6 @@ module TLpsrc2spec
   SHAREDSTATEDIR = RPM["_sharedstatedir"]
   LOCALSTATEDIR  = RPM["_localstatedir"]
   SYSCONFDIR     = RPM["_sysconfdir"]
-
-  TEXMFDIR       = File.join(DATADIR, "texmf")
-  TEXMFDISTDIR   = File.join(DATADIR, "texmf-dist")
-  TEXMFLOCALDIR  = File.join(DATADIR, "texmf-local")
-  TEXMFVARDIR    = File.join(LOCALSTATEDIR, "texmf")
-  TEXMFCONFIGDIR = File.join(SYSCONFDIR, "texmf")
-  TEXMF = [TEXMFDIR, TEXMFDISTDIR, TEXMFLOCALDIR, TEXMFVARDIR, TEXMFCONFIGDIR]
 
   OLDTEXMFDIR       = `kpsewhich -var-value TEXMFMAIN`.chomp
   OLDTEXMFDISTDIR   = `kpsewhich -var-value TEXMFDIST`.chomp
@@ -75,25 +71,85 @@ module TLpsrc2spec
     property mode : FileMode
     property user : String?
     property group : String?
-    property? config : Bool
-    property? noreplace : Bool
-    property? missingok : Bool
 
-    def initialize(@mode = FileMode::None, @user = nil, @group = nil,
-                   @config = false, @noreplace = false, @missingok = false)
+    def initialize(*, @mode = FileMode::None, @user = "root", @group = "root")
+    end
+
+    def to_s(io : IO, *, defattr = false)
+      if defattr
+        io << "%defattr("
+      else
+        io << "%attr("
+      end
+      if @mode == FileMode::None
+        io << "-"
+      else
+        io << "%04o" % @mode
+      end
+      if @user
+        io << "," << @user
+        if @group
+          io << "," << @group
+        end
+      end
+      io << ")"
+    end
+
+    def ==(other : FileAttribute)
+      if self.object_id == other.object_id
+        true
+      else
+        @mode == other.mode && @user == other.user && @group == other.group
+      end
     end
   end
 
+  class FileConfig
+    property? noreplace : Bool
+    property? missingok : Bool
+
+    def initialize(*, @noreplace = false)
+      @missingok = false
+    end
+
+    def initialize(*, @missingok)
+      @noreplace = false
+    end
+
+    def to_s(io : IO)
+      first = true
+      {% for name in [:noreplace, :missingok] %}
+        if @{{name.id}}
+          if first
+            io << "%config("
+          else
+            io << " "
+          end
+          first = false
+          io << {{name.stringify}}
+        end
+      {% end %}
+
+      if !first
+        io << ")"
+      end
+    end
+  end
+
+  DEFAULT_ATTRIBUTE = FileAttribute.new
+
   class FileEntry
     property path : String
-    property attr : FileAttribute?
-    property verity : String?
+    property attr : FileAttribute
+    property config : FileConfig?
+    property verify : String?
     property? doc : Bool
     property? docdir : Bool
     property? dir : Bool
     property tlpdb_tag : TLPDB::Tag
 
-    def initialize(@path, @attr = nil, @verity = nil, @doc = false,
+    def initialize(@path, *, @attr = DEFAULT_ATTRIBUTE,
+                   @config = nil, @verify = nil, @doc = false,
                    @docdir = false, @dir = false,
                    @tlpdb_tag = TLPDB::Tag::RUNFILES)
     end
@@ -102,9 +158,9 @@ module TLpsrc2spec
   class Package
     property name : String
     property description : String?
-    property group : String
+    property group : String?
     property summary : String?
-    property requires : Array(String | RPM::Package | RPM::Dependency)
+    property requires : Array(String | RPM::Dependency)
     property version : String?
     property release : String?
     property files : Array(FileEntry)
@@ -115,20 +171,22 @@ module TLpsrc2spec
     property pretrans : String?
     property posttrans : String?
     property tlpdb_pkgs : Array(TLPDB::Package)
-    property obsoletes : Array(String | RPM::Package | RPM::Dependency)
-    property provides : Array(String | RPM::Package | RPM::Dependency)
+    property obsoletes : Array(String | RPM::Dependency)
+    property provides : Array(String | RPM::Dependency)
+    property conflicts : Array(String | RPM::Dependency)
     property license : Array(String)
     property? archdep : Bool
 
-    def initialize(@name, *, @description = nil, @group = DEFAULT_RPM_GROUP,
-                   @summary = nil, @archdep = false,
-                   @requires = ([] of String | RPM::Package | RPM::Dependency),
+    def initialize(@name, *, @description = nil,
+                   @group = nil, @summary = nil, @archdep = false,
+                   @requires = ([] of String | RPM::Dependency),
                    @version = nil, @license = ([] of String),
                    @release = nil, @files = ([] of FileEntry), @post = nil,
                    @postun = nil, @preun = nil, @pretrans = nil,
                    @posttrans = nil, @tlpdb_pkgs = ([] of TLPDB::Package),
-                   @obsoletes = ([] of String | RPM::Package | RPM::Dependency),
-                   @provides = ([] of String | RPM::Package | RPM::Dependency))
+                   @obsoletes = ([] of String | RPM::Dependency),
+                   @provides = ([] of String | RPM::Dependency),
+                   @conflicts = ([] of String | RPM::Dependency))
     end
 
     def to_rpm_package
@@ -177,12 +235,14 @@ module TLpsrc2spec
       installed = RPM::Spec.open(installed)
 
       log.info "Reading Spec file #{template_specfile}..."
+      template_test = IO::Memory.new
       tempfile = File.tempfile("template", ".spec")
       template_data =
         begin
           File.open(template_specfile, "r") do |fp|
             fp.each_line do |line|
               nline = line.gsub(/@@[^@]+@@/, "")
+              template_test.puts line
               tempfile.puts nline
             end
           end
@@ -191,6 +251,10 @@ module TLpsrc2spec
         ensure
           tempfile.delete
         end
+      template_test.pos = 0
+      SpecGenerator.parse_template(template_test) do
+        # NOP.
+      end
       self.new(tlpdb, template_specfile, template_data, installed)
     end
 
@@ -202,9 +266,15 @@ module TLpsrc2spec
       Application.log
     end
 
-    def main(rule : Rule.class)
+    def generate_spec(output, master_package : Package, **args)
+      generator = SpecGenerator.new(@template, @pkgs, master_package)
+      generator.generate(output, **args)
+    end
+
+    def main(output, rule : Rule.class)
       rule_obj = rule.new(self)
       rule_obj.collect
+      generate_spec(output, rule_obj.master_package)
     end
   end
 
@@ -212,6 +282,7 @@ module TLpsrc2spec
   @@template_specfile : String? = nil
   @@installed_specfile : String? = nil
   @@log : Logger = Logger.new(STDERR, LEVEL, FORMATTER)
+  @@output : String | IO = STDOUT
 
   def self.log
     @@log
@@ -229,11 +300,18 @@ module TLpsrc2spec
       opts.on("-I", "--installed=FILE", "RPM Spec file used for current installation") do |name|
         @@installed_specfile = name
       end
+      opts.on("-o", "--output=FILE", "Output spec file name") do |path|
+        @@output = path
+      end
       opts.on("-v", "--verbose", "Be Verbose") do
         @@log.level -= 1
       end
       opts.on("-q", "--quiet", "Be Quiet") do
         @@log.level += 1
+      end
+      opts.on("-h", "--help", "Show this help") do
+        STDERR.print opts
+        exit 1
       end
     end
 
@@ -244,7 +322,7 @@ module TLpsrc2spec
     base = @@installed_specfile
     if tlpdb && spec && base
       app = TLpsrc2spec::Application.create(tlpdb, spec, base)
-      app.main(rule)
+      app.main(@@output, rule)
       0
     else
       @@log.error "TLPDB file not given" unless tlpdb

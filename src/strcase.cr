@@ -11,7 +11,7 @@ module StringCase
     @capacity : Int32
     @eof : Int32 = -1
 
-    def initialize(@io : IO, @capacity : Int32 = 64)
+    def initialize(@io : IO? = nil, @capacity : Int32 = 64)
       super(@capacity)
     end
 
@@ -74,7 +74,7 @@ module StringCase
       end
       if nread < nbytes
         (nread...nbytes).each do |i|
-          self.buffer[i] = 0
+          self.buffer[@limit + i] = 0
         end
       end
       if nread > 0
@@ -138,7 +138,11 @@ module StringCase
       if @token < 0
         nil
       else
-        self[@token...self.pos]
+        last = self.pos
+        if @eof >= 0 && last > @eof
+          last = @eof
+        end
+        self[@token...last]
       end
     end
 
@@ -146,7 +150,7 @@ module StringCase
       @eof >= 0 && self.pos >= @eof
     end
 
-    def debug_cursor
+    def debug_cursor(io : IO)
       str = String.new(self.buffer, @limit)
       lines = str.split(/\n/)
       lsz = lines.size + @line
@@ -156,24 +160,41 @@ module StringCase
         lsz /= 10
       end
       cursor = self.pos
-      String.build do |str|
-        lines.each_with_index do |s, i|
-          str << " %*d: %s\n" % {lwid, i + @line, s}
-          if cursor >= 0 && cursor < s.size
-            str << " "
-            lwid.times do
-              str << " "
-            end
-            str << "  "
-            (cursor - 1).times do
-              str << "~"
-            end
-            str << "^\n"
-            cursor = -1
-          else
-            cursor -= s.size + 1
+
+      lines.each_with_index do |s, i|
+        io << " %*d: %s\n" % {lwid, i + @line, s}
+        if cursor >= 0 && cursor <= s.size
+          io << " "
+          lwid.times do
+            io << " "
           end
+          io << "  "
+          (cursor - 1).times do
+            io << "~"
+          end
+          io << "^\n"
+          cursor = -1
+        else
+          cursor -= s.size + 1
         end
+      end
+      if cursor >= 0
+        io << " "
+        lwid.times do
+          io << " "
+        end
+        io << "  "
+        (cursor - 1).times do
+          io << "~"
+        end
+        io << "^\n"
+        cursor = -1
+      end
+    end
+
+    def debug_cursor
+      String.build do |builder|
+        debug_cursor(builder)
       end
     end
   end

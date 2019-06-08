@@ -1,23 +1,38 @@
 require "./strcase"
 
-{% if compare_versions(Crystal::VERSION, "0.28.999999") < 0 %}
-  # Monkey-Patching Set.
-  struct Set(T)
-    def delete_if(&block)
-      @hash.delete_if do |*args|
-        yield *args
-      end
-    end
-  end
-{% end %}
+# {% if compare_versions(Crystal::VERSION, "0.28.999999") < 0 %}
+#   # Monkey-Patching Set.
+#   struct Set(T)
+#     def delete_if(&block)
+#       @hash.delete_if do |*args|
+#         yield *args
+#       end
+#     end
+#   end
+# {% end %}
 
 module TLpsrc2spec
   class MomongaRule < Rule
+    class Package < TLpsrc2spec::Package
+      def group
+        super || "Applications/Publishing"
+      end
+    end
+
+    TEXMFDIR       = File.join(DATADIR, "texmf")
+    TEXMFDISTDIR   = File.join(DATADIR, "texmf-dist")
+    TEXMFLOCALDIR  = File.join(DATADIR, "texmf-local")
+    TEXMFVARDIR    = File.join(LOCALSTATEDIR, "texmf")
+    TEXMFCONFIGDIR = File.join(SYSCONFDIR, "texmf")
+    TEXMF          = [TEXMFDIR, TEXMFDISTDIR, TEXMFLOCALDIR, TEXMFVARDIR, TEXMFCONFIGDIR]
     @tree : DirectoryTree
+    @master : Package
     @all_license : Set(String) = Set(String).new
+    @ts : RPM::Transaction = RPM::Transaction.new
 
     def initialize(*args)
       @tree = DirectoryTree.new
+      @master = Package.new("texlive")
       super(*args)
     end
 
@@ -101,7 +116,7 @@ module TLpsrc2spec
       else
         log.debug { "License file candidates of #{tlpkg.name} (#{license_name})" }
         candidates.each do |cand|
-          log.debug { " * #{cand.path} (#{cand.details})"}
+          log.debug { " * #{cand.path} (#{cand.details})" }
         end
         path = candidates.first.path
         "see \"#{File.basename(path)}\""
@@ -142,7 +157,7 @@ module TLpsrc2spec
           when "berenisadf"
             # See https://ctan.org/tex-archive/fonts/berenisadf
             return ["GPLv2", "see \"COPYING\", LPPL"]
-          #when "blacklettert1"
+          # when "blacklettert1"
           #  # See https://ctan.org/tex-archive/fonts/gothic/blacklettert1
           #  # It seems slightly different to LPPL 1.2.
           #  return "LPPL"
@@ -576,7 +591,7 @@ module TLpsrc2spec
               "GPL",
               "LGPL",
               "LPPL",
-              "see \"LICENSE-utopia.txt\""
+              "see \"LICENSE-utopia.txt\"",
             ]
           when "wadalab"
             # See https://ctan.org/pkg/wadalab
@@ -588,7 +603,7 @@ module TLpsrc2spec
             # See https://ctan.org/pkg/xcharter
             return [
               "see \"README\"",
-              "LPPL"
+              "LPPL",
             ]
           when "xdvi"
             # See https://ctan.org/pkg/xdvi
@@ -598,7 +613,6 @@ module TLpsrc2spec
             # See https://ctan.org/pkg/yfonts-t1
             log.warn { "License of yfonts-t1 unknown" }
             return "see \"README\""
-
           when "2up"
             # According to 2up.tex
             return "LPPL"
@@ -632,7 +646,7 @@ module TLpsrc2spec
               # vrtbexin.sty is Non-Commercial only.
               "see \"vrbexin.sty\"",
               # iagproc.cls, nextpage.sty, texilikechaps.sty, topcapt.sty
-              "LPPL"
+              "LPPL",
             ]
           when "fragments"
             # See https://ctan.org/pkg/fragments
@@ -645,7 +659,7 @@ module TLpsrc2spec
             return [
               "Public Domain",
               "LPPL",
-              "see \"COPYING\"" # blacklettert1
+              "see \"COPYING\"", # blacklettert1
             ]
           when "npp-for-context"
             # See https://github.com/luigiScarso/context-npp
@@ -759,42 +773,42 @@ module TLpsrc2spec
             end
           when "cc-by-"
             StringCase.strcase \
-              case license
-              when "1", "2", "3", "4"
-                ret << "Creative Commons"
-              when "sa-1", "sa-2", "sa-3", "sa-4"
-                ret << "CC-BY-SA"
-              when "nd-1", "nd-2", "nd-3", "nd-4"
-                # CC-BY-ND
-                log.error { "#{tlpkg.name}: CC-BY-ND is not \"free culture license\"" }
-                stat = true
-                ret << see_license(tlpkg)
-              when "nc-"
-                StringCase.strcase \
-                  case license
-                  when "1", "2", "3", "4"
-                    # CC-BY-NC
-                    log.error { "#{tlpkg.name}: CC-BY-NC is not \"free culture license\"" }
-                    stat = 1
-                    ret << see_license(tlpkg)
-                  when "sa-1", "sa-2", "sa-3", "sa-4"
-                    # CC-BY-NC-SA
-                    log.error { "#{tlpkg.name}: CC-BY-NC-SA is not \"free culture license\"" }
-                    stat = 1
-                    ret << see_license(tlpkg)
-                  when  "nd-1", "nd-2", "nd-3", "nd-4"
-                    # CC-BY-NC-ND
-                    log.error { "#{tlpkg.name}: CC-BY-NC-ND is not \"free culture license\"" }
-                    stat = 1
-                    ret << see_license(tlpkg)
-                  else
-                    log.error { "Unknown lincese: #{tlpdb_license_name}" }
-                    return nil
-                  end
-              else
-                log.error { "Unknown lincese: #{tlpdb_license_name}" }
-                return nil
-              end
+             case license
+             when "1", "2", "3", "4"
+               ret << "Creative Commons"
+             when "sa-1", "sa-2", "sa-3", "sa-4"
+               ret << "CC-BY-SA"
+             when "nd-1", "nd-2", "nd-3", "nd-4"
+               # CC-BY-ND
+               log.error { "#{tlpkg.name}: CC-BY-ND is not \"free culture license\"" }
+               stat = true
+               ret << see_license(tlpkg)
+             when "nc-"
+               StringCase.strcase \
+                 case license
+                 when "1", "2", "3", "4"
+                   # CC-BY-NC
+                   log.error { "#{tlpkg.name}: CC-BY-NC is not \"free culture license\"" }
+                   stat = 1
+                   ret << see_license(tlpkg)
+                 when "sa-1", "sa-2", "sa-3", "sa-4"
+                   # CC-BY-NC-SA
+                   log.error { "#{tlpkg.name}: CC-BY-NC-SA is not \"free culture license\"" }
+                   stat = 1
+                   ret << see_license(tlpkg)
+                 when "nd-1", "nd-2", "nd-3", "nd-4"
+                   # CC-BY-NC-ND
+                   log.error { "#{tlpkg.name}: CC-BY-NC-ND is not \"free culture license\"" }
+                   stat = 1
+                   ret << see_license(tlpkg)
+                 else
+                   log.error { "Unknown lincese: #{tlpdb_license_name}" }
+                   return nil
+                 end
+             else
+               log.error { "Unknown lincese: #{tlpdb_license_name}" }
+               return nil
+             end
           when "artistic"
             save = license.pos
             ch = license.next_char
@@ -873,10 +887,10 @@ module TLpsrc2spec
       kpselibname = package_name_from_tlpdb_name(name + "-libs")
       if kpsedevname
         kpsedev = Package.new(kpsedevname,
-                              summary: "Development files for #{name}",
-                              group: "Development/Libraries",
-                              archdep: true,
-                              description: <<-EOD)
+          summary: "Development files for #{name}",
+          group: "Development/Libraries",
+          archdep: true,
+          description: <<-EOD)
           This package contains development files for #{name}.
         EOD
         if has_include
@@ -884,10 +898,10 @@ module TLpsrc2spec
             if include_subdir.responds_to?(:each)
               dirs = include_subdir
             else
-              dirs = { include_subdir }
+              dirs = {include_subdir}
             end
           else
-            dirs = { "*" }
+            dirs = {"*"}
           end
           dirs.each do |x|
             kpsedev.files << FileEntry.new(File.join(INCLUDEDIR, x))
@@ -900,10 +914,10 @@ module TLpsrc2spec
       end
       if kpselibname
         kpselib = Package.new(kpselibname,
-                              summary: "Library files of #{name}",
-                              group: "System Envrionment/Libraries",
-                              archdep: true,
-                              description: <<-EOD)
+          summary: "Library files of #{name}",
+          group: "System Envrionment/Libraries",
+          archdep: true,
+          description: <<-EOD)
           This package contains library files of #{name}.
         EOD
         kpselib.files << FileEntry.new(File.join(LIBDIR, "#{libname}*.so.*"))
@@ -970,16 +984,58 @@ module TLpsrc2spec
       stat = false
       each_package do |pkg|
         tlpkgs = pkg.tlpdb_pkgs
-        if (tlpkg = tlpkgs.first?)
-          pkg.summary = tlpkg.shortdesc
-        end
         pkg.archdep = tlpkgs.any? do |tlpkg|
           binfiles = tlpkg.binfiles
           binfiles && !binfiles.empty?
         end
+        archdepname = nil
+        if (tlpkg = tlpkgs.first?)
+          if pkg.archdep?
+            n = tlpkg.name.not_nil!
+            ni = n.byte_index('.'.ord)
+            archdepname = n[0...ni]
+            pkg.summary = String.build do |io|
+              io << "Binary files for TeX Live Package '"
+              io << archdepname
+              io << "'"
+            end
+          else
+            pkg.summary = String.build do |io|
+              io << tlpkg.shortdesc
+              io << " (" << tlpkg.name
+              if tlpkgs.size > 1
+                io << ", ..."
+              end
+              io << ")"
+            end
+          end
+        end
         pkg.description = String.build do |io|
-          tlpkgs.each do |tlpkg|
-            io << tlpkg.longdesc << "\n"
+          if pkg.archdep?
+            io << "Binary files for TeX Live Package '"
+            io << archdepname.not_nil!
+            io << "'"
+          else
+            nlongdesc = tlpkgs.count do |tlpkg|
+              l = tlpkg.longdesc
+              l && l.size > 0
+            end
+            print_name = nlongdesc > 1
+            first = true
+            tlpkgs.each do |tlpkg|
+              longdesc = tlpkg.longdesc
+              if !longdesc || longdesc.size == 0
+                next
+              end
+              if print_name
+                if !first
+                  io << "\n"
+                end
+                io << "(" << tlpkg.name << ")\n"
+              end
+              io << longdesc << "\n"
+              first = false
+            end
           end
         end
         tlpkgs.each do |tlpkg|
@@ -1038,8 +1094,8 @@ module TLpsrc2spec
       end
 
       add_package(Package.new("texlive-japanese-recommended",
-                              summary: "TeX Live: recommended packages for Japanese users",
-                              description: <<-EOD))
+        summary: "TeX Live: recommended packages for Japanese users",
+        description: <<-EOD))
         This meta-package contains a collection of recommended packages for
         Japanese texlive users.
       EOD
@@ -1055,15 +1111,15 @@ module TLpsrc2spec
       end
     end
 
-    def add_config_file(pkg : Package, path : String)
+    def add_config_file(pkg : TLpsrc2spec::Package, path : String)
       cnffile = make_config_file(path)
       log.warn { "Creating in sysconfdir: #{cnffile}" }
-      attr = FileAttribute.new(config: true)
-      e = FileEntry.new(cnffile, attr: attr)
+      conf = FileConfig.new
+      e = FileEntry.new(cnffile, config: conf)
       pkg.files << e
     end
 
-    def expand_tlpdb_files(pkg : Package, tlpkg : TLPDB::Package,
+    def expand_tlpdb_files(pkg : TLpsrc2spec::Package, tlpkg : TLPDB::Package,
                            tag : TLPDB::Tag, files : TLPDB::Files)
       files.each do |pinfo|
         path = pinfo.path
@@ -1183,8 +1239,9 @@ module TLpsrc2spec
       log.info "Directory compacting"
       dirs = [] of DirectoryNode
       filesystem_pkg = Package.new("filesystem")
-      RPM.transaction do |ts|
-        iter = ts.init_iterator(RPM::DbiTag::Name, "filesystem")
+      #RPM.transaction do |ts|
+      begin
+        iter = @ts.init_iterator(RPM::DbiTag::Name, "filesystem")
         begin
           rpmfspkg = iter.first
           rpmfspkg.files.each do |entry|
@@ -1309,8 +1366,19 @@ module TLpsrc2spec
       end
     end
 
+    def make_obsolete(rpmpkg : RPM::Package)
+      v = rpmpkg[RPM::Tag::Version].as(String)
+      r = rpmpkg[RPM::Tag::Release].as(String)
+      e = rpmpkg[RPM::Tag::Epoch].as(UInt32?)
+      version = RPM::Version.new(v, r, e)
+      RPM::Obsolete.new(rpmpkg.name, version,
+                        RPM::Sense::LESS | RPM::Sense::EQUAL, nil)
+    end
+
     def obsolete_old_packages
       log.info { "Creating obsoletion entries" }
+      metadirs = [TEXMFDISTDIR, TEXMFDIR]
+      docdirs = metadirs.map { |x| File.join(x, "doc") }
       each_package do |pkg|
         name = pkg.name
         log.info { "Searching obsoletion info for #{name}" }
@@ -1322,25 +1390,30 @@ module TLpsrc2spec
               entry.tlpdb_tag == TLPDB::Tag::DOCFILES)
             basename = File.basename(entry.path)
             paths = installed_file_path(basename)
-            paths.delete_if do |path|
-              if path.starts_with?(File.join(TEXMFDISTDIR, "doc"))
-                false
-              elsif path.starts_with?(File.join(TEXMFDIR, "doc"))
-                false
-              elsif path.starts_with?(TEXMFDISTDIR)
-                false
-              elsif path.starts_with?(TEXMFDIR)
-                false
-              else
-                true
+            if entry.tlpdb_tag == TLPDB::Tag::RUNFILES
+              filter = Proc(String, Bool).new do |path|
+                if docdirs.any? { |dir| path.starts_with?(dir) }
+                  true
+                elsif metadirs.any? { |dir| path.starts_with?(dir) }
+                  false
+                else
+                  true
+                end
+              end
+            else
+              filter = Proc(String, Bool).new do |path|
+                if docdirs.any? { |dir| path.starts_with?(dir) }
+                  false
+                else
+                  true
+                end
               end
             end
-            # paths.each do |path|
-            #   log.debug { " --> #{path}" }
-            # end
-            if paths.size > 1
-              pathparts = Path.new(entry.path).parts
-              h_map = paths.map do |path|
+            pathparts = Path.new(entry.path).parts
+            h_map = paths.compact_map do |path|
+              if filter.call(path)
+                nil
+              else
                 xparts = Path.new(path).parts
                 a = pathparts.reverse_each
                 b = xparts.reverse_each
@@ -1357,56 +1430,147 @@ module TLpsrc2spec
                 end
                 {path, i}
               end
-              h_map.sort_by! do |ent|
-                -ent[1]
+            end
+            found = nil
+            if h_map.size > 0
+              found = h_map.max_by do |ent|
+                ent[1]
               end
-              h_map.each do |ent|
-                log.debug { " --> #{ent[0]} (score: #{ent[1]})" }
+            end
+            h_map.each do |ent|
+              log.debug do
+                String.build do |builder|
+                  builder << " --> "
+                  if found && ent[0] == found[0]
+                    builder << "* "
+                  else
+                    builder << "  "
+                  end
+                  builder << ent[0] << " (score: " << ent[1] << ")"
+                end
               end
-              if (ent = h_map.first?)
-                path = ent[0]
+            end
+            path = nil
+            if found
+              if found[1] <= 3
+                basename = StringCase::Single.new(found[0])
+                xpos = 0
+                until basename.eof?
+                  ch = basename.next_char
+                  if ch == '/'
+                    xpos = basename.pos
+                  end
+                end
+                basename.pos = xpos
+                StringCase.strcase_case_insensitive \
+                  case basename
+                  # README and common names
+                  when "README", "LICENSE", "LICENCE", "COPYING",
+                       "COPYRIGHT", "CHANGES", "VERSION", "ChangeLog",
+                       "INSTALL", "ABOUT", "NEWS", "THANKS", "TODO",
+                       "AUTHORS", "BACKLOG", "FONTLOG", "FAQ",
+                       "NOTICE", "00readme"
+                    nil
+                  # License filename
+                  when "OFL", "GPL"
+                    nil
+                  # for aastex
+                  when "natnotes.tex"
+                    nil
+                  # for afparticle
+                  when "vitruvian.jpg"
+                    nil
+                  # for ametstoc
+                  when "template.tex"
+                    nil
+                  # for changebar
+                  when "cbtest1.tex"
+                    nil
+                  # for background
+                  when "background.pdf"
+                    nil
+                  # for classisthesis
+                  when "abstract.tex"
+                    nil
+                  # for lshort etc.
+                  when "title.tex"
+                    nil
+                  # for ketcindy
+                  when "fourier.tex"
+                    nil
+                  # for fascicules
+                  when "tikz.tex"
+                    nil
+                  # for url
+                  when "miscdoc.sty"
+                    nil
+                  # maven
+                  when "build.xml"
+                    nil
+                  # generic names used by many packages.
+                  when "exmaple.pdf", "example.tex", "sample.pdf",
+                       "sample.tex", "layout.pdf",
+                       "appendix", "grid.tex", "chart.tex", "test.tex",
+                       "alea.tex", "fill.tex", "ltxdoc.cfg", "minimal.tex",
+                       "at.pdf", "references.bib", "manifest", "logo.pdf",
+                       "help.tex", "guide.pdf", "preamble.tex", "intro.tex"
+                    nil
+                  else
+                    path = found[0]
+                  end
+              else
+                path = found[0]
               end
-            else
-              path = paths.first?
             end
             if path
-              log.warn { "Using path   '#{path}'" }
-              log.warn { "... provides '#{entry.path}'" }
+              log.debug { "Using path   '#{path}'" }
+              log.debug { "... provides '#{entry.path}'" }
               installed_pkgs = installed_path_package(path)
             end
           end
           installed_pkgs.each do |x, rpmpkg|
             if rpmpkg.name != pkg.name
-              v = rpmpkg[RPM::Tag::Version].as(String)
-              r = rpmpkg[RPM::Tag::Release].as(String)
-              e = rpmpkg[RPM::Tag::Epoch].as(UInt32?)
-              vre = RPM::Version.new(v, r, e).to_vre
               if !pkg.obsoletes.any? do |x|
-                   if x.responds_to?(:name)
-                     x.name == rpmpkg.name
-                   else
-                     x == rpmpkg.name
-                   end
-                 end
-                log.info do
-                  " ... obsoletes: #{rpmpkg.name}-#{vre}"
+                  if x.responds_to?(:name)
+                    x.name == rpmpkg.name
+                  else
+                    x == rpmpkg.name
+                  end
                 end
-                pkg.obsoletes << rpmpkg
+                obso = make_obsolete(rpmpkg)
+                log.info do
+                  String.build do |str|
+                    str << " ... obsoletes: "
+                    str << obso.name << "-" << obso.version.to_vre
+                    if path
+                      str << " (by file '"
+                      str << path
+                      str << "' which will be replaced by '"
+                      str << entry.path
+                      str << "')"
+                    else
+                      str << " (by file '"
+                      str << entry.path
+                      str << "')"
+                    end
+                  end
+                end
+                pkg.obsoletes << obso
               end
             end
             rpmpkg.obsoletes.each do |obso|
               name = obso.name
               next if name == pkg.name
               next if pkg.obsoletes.any? do |x|
-                        if x.responds_to?(:name)
-                          x.name == name
-                        else
-                          x == name
-                        end
-                      end
+                if x.responds_to?(:name)
+                  x.name == name
+                else
+                  x == name
+                end
+              end
               dnevr = obso.to_dnevr
               log.info do
-                " ... obsoletes: #{dnevr}"
+                " ... obsoletes: #{dnevr} (by package #{rpmpkg.name})"
               end
               pkg.obsoletes << obso
             end
@@ -1419,38 +1583,39 @@ module TLpsrc2spec
          (pxdvi = installed_pkgs["texlive-pxdvik"]?)
         pxdvi_pkg = pxdvi.each_value.first
         log.info { "#{xdvi.name} obsoletes #{pxdvi_pkg.name}" }
-        xdvi.obsoletes << pxdvi_pkg
+        xdvi.obsoletes << make_obsolete(pxdvi_pkg)
       end
     end
 
     def check_obsoletes
       log.info { "Finding packages which won't be obsoleted..." }
       scheme_full = packages("texlive-scheme-full")
-      dset = installed_db.each_base_package.to_set
       cset = installed_db.each_base_package.to_set
-      obsoleted_by = {} of String => Set(Package)
+      obsoleted_by = {} of String => Set(TLpsrc2spec::Package)
+      found_obsoletes = Set(String).new
       each_package do |pkg|
-        dset.delete_if do |opkg|
-          pkg.name == opkg.name
-        end
-        rem = [] of (String | RPM::Package | RPM::Dependency)
+        found_obsoletes.add(pkg.name)
+        rem = [] of (String | RPM::Dependency)
         pkg.obsoletes.each do |obso|
           if obso.responds_to?(:name)
             name = obso.name
           else
             name = obso
           end
-          dset.delete_if do |opkg|
-            name == opkg.name
-          end
+          found_obsoletes.add(name)
           m = cset.find do |opkg|
             name == opkg.name
           end
           if m.nil?
             ipkg = nil
-            RPM.transaction do |ts|
-              iter = ts.init_iterator(RPM::DbiTag::Name, name)
-              ipkg = iter.first?
+            #RPM.transaction do |ts|
+            begin
+              iter = @ts.init_iterator(RPM::DbiTag::Name, name)
+              begin
+                ipkg = iter.first?
+              ensure
+                iter.finalize
+              end
             end
             if ipkg
               log.warn { "Unexpected obsoletes: #{name} by #{pkg.name}" }
@@ -1474,52 +1639,62 @@ module TLpsrc2spec
           end
         end
       end
-      h = {} of String => RPM::Package
+      dset = installed_db.each_base_package
       dset.each do |pkg|
-        h[pkg.name] = pkg
-      end
-      h.each do |name, pkg|
-        v = pkg[RPM::Tag::Version].as(String)
-        r = pkg[RPM::Tag::Release].as(String)
-        e = pkg[RPM::Tag::Epoch].as(UInt32?)
-        vre = RPM::Version.new(v, r, e).to_vre
-        if !packages?(name)
-          log.warn { "Nothing obsoletes #{pkg.name}-#{vre}" }
-          scheme_full.obsoletes << pkg
+        if found_obsoletes.includes?(pkg.name)
+          next
         end
+        obso = make_obsolete(pkg)
+        log.warn { "Nothing obsoletes #{obso.name}-#{obso.version.to_vre}" }
+        scheme_full.obsoletes << obso
       end
       scheme_full.obsoletes << RPM::Obsolete.new("texlive-all", RPM::Version.new("2019", "0m"), RPM::Sense::LESS, nil)
 
-      newtljap = packages("texlive-japanese-recommended")
-      RPM.transaction do |ts|
-        iter = ts.init_iterator(RPM::DbiTag::Name, "texlive-japanese-recommended")
-        tljap = iter.first?
-        if tljap
-          log.info { "'texlive-japanese-recommended' will install:" }
-          tljap.requires.each do |req|
-            name = req.name
-            if (whatobsoletes = obsoleted_by[name]?)
-              whatobsoletes.each do |provider|
-                pname = provider.name
-                if !newtljap.requires.any? do |x|
-                     pname == x
-                   end
-                  log.info { "  * #{pname}" }
-                  newtljap.requires << pname
-                end
-              end
-            elsif (whatprovides = packages?(name))
-              if !newtljap.requires.any? do |x|
-                   name == x
-                 end
-                log.info { "  * #{name}" }
-                newtljap.requires << name
-              end
-            else
-              log.warn { "  ... Nothing found which provides #{name}" }
-            end
+      log.info { "Reverse obsoletion info" }
+      obsoleted_by.each do |name, pkgs|
+        if pkgs.size > 0
+          log.info { "'#{name}' will be obsoleted by:" }
+          pkgs.each do |pkg|
+            log.info { " * #{pkg.name}" }
           end
-          log.info { "(end)" }
+        end
+      end
+
+      newtljap = packages("texlive-japanese-recommended")
+      #RPM.transaction do |ts|
+      begin
+        iter = @ts.init_iterator(RPM::DbiTag::Name, "texlive-japanese-recommended")
+        begin
+          tljap = iter.first?
+          if tljap
+            log.info { "'texlive-japanese-recommended' will install:" }
+            tljap.requires.each do |req|
+              name = req.name
+              if (whatobsoletes = obsoleted_by[name]?)
+                whatobsoletes.each do |provider|
+                  pname = provider.name
+                  if !newtljap.requires.any? do |x|
+                      pname == x
+                    end
+                    log.info { "  * #{pname}" }
+                    newtljap.requires << pname
+                  end
+                end
+              elsif (whatprovides = packages?(name))
+                if !newtljap.requires.any? do |x|
+                    name == x
+                  end
+                  log.info { "  * #{name}" }
+                  newtljap.requires << name
+                end
+              elsif !name.starts_with?("rpmlib")
+                log.warn { "  ... Nothing found which provides #{name}" }
+              end
+            end
+            log.info { "(end)" }
+          end
+        ensure
+          iter.finalize
         end
       end
     end
@@ -1534,7 +1709,7 @@ module TLpsrc2spec
     end
 
     def master_package
-      packages("texlive")
+      @master
     end
   end
 end
