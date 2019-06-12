@@ -1,46 +1,15 @@
 require "./spec_helper"
 require "./test"
 
-TLPDB_DATA = <<-EOF
-name test
-category coll
-depend a b
-depend c
-depend d
-revision 1000
-catalogue-date 2019-01-01 01:00:00 +01:00
-binfiles size=1 arch=x86_64-linux
- bin/tex
-
-name test2
-category coll
-longdesc foo blah blah
-longdesc bar
-longdesc baz
-shortdesc desc
-revision 100
-runfiles 
- texmf/tex/latex/test/test.sty
-
-name bar
-category package
-revision 0
-catalogue-date 2019-01-01 01:00:00 +02:00
-runfiles 
- texmf/tex/latex/bar/bar.sty
-docfiles 
- texmf/doc/latex/bar/bar.pdf details="Documentation" language=en
-
-EOF
-
 include TLpsrc2spec
 
 describe TLpsrc2spec::TLPDB do
-  io = IO::Memory.new(TLPDB_DATA)
   database = nil
 
   it "parses sample" do
-    database = TLPDB.parse(io)
+    database = File.open(fixture("texlive.tlpdb"), "r") do |fp|
+      TLPDB.parse(fp)
+    end
     database.should_not be_nil
   end
 
@@ -49,7 +18,7 @@ describe TLpsrc2spec::TLPDB do
     test = db["test"]
     test.name.should eq("test")
     test.category.should eq("coll")
-    test.depend.should eq(%w[a b c d])
+    test.depends.should eq(%w[a b c d])
     date = test.catalogue_date
     date.should_not be_nil
     if date
@@ -62,12 +31,17 @@ describe TLpsrc2spec::TLPDB do
       date.zone.should eq Time::Location::Zone.new(nil, 3600, false)
     end
     files = test.binfiles
-    files.should_not be_nil
-    if files
-      files.size.should eq(1)
-      files.arch.should eq("x86_64-linux")
-      files.any? { |x| x.path == "bin/tex" }.should be_true
-    end
+    files.size.should eq 1
+    set = files[0]
+    set.size.should eq(1)
+    set.arch.should eq("x86_64-linux")
+    set.any? { |x| x.path == "bin/tex" }.should be_true
+    posta = test.postactions
+    posta.size.should eq 1
+    post = posta[0]
+    post.class.should eq TLpsrc2spec::TLPDB::PostAction::Script
+    scr = post.as(TLpsrc2spec::TLPDB::PostAction::Script)
+    scr.file.should eq "test.rb --with=\"quote\""
   end
 
   it "can find package the name starts with 'test'" do
@@ -133,8 +107,8 @@ describe TLpsrc2spec::Application do
   File.tempfile("test", ".spec") do |tmpfile|
     it "can build a spec" do
       app = TLpsrc2spec::Application.create(fixture("texlive.tlpdb"),
-                                            fixture("template.spec"),
-                                            fixture("installed.spec"))
+        fixture("template.spec"),
+        fixture("installed.spec"))
       app.main(tmpfile, TLpsrc2spec::TestRule)
     end
     tmpfile.flush

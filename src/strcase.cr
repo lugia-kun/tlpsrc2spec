@@ -69,7 +69,7 @@ module StringCase
           self.pos = pos
         end
         if nread < nspace
-          @eof = nread + @limit
+          @eof = (nread + @limit).to_i32
         end
       end
       if nread < nbytes
@@ -232,7 +232,7 @@ module StringCase
   end
 
   macro make_recursive_case(case_io, save_mark, depth, test_eof,
-                            case_sensitive, accept, not_matched, *lists)
+                            case_insensitive, accept, not_matched, *lists)
     {% m = {} of CharLiteral => ArrayLiteral %}
     {% has_end_here = nil %}
     {% for x in lists %}
@@ -276,9 +276,7 @@ module StringCase
       {% end %}
         case yych
             {% for c in m.keys %}
-              {% if case_sensitive %}
-              when {{c}}
-              {% else %}
+              {% if case_insensitive %}
                 {% s = c.id.stringify %}
                 {% cup = s.upcase.chars[0] %}
                 {% cdn = s.upcase.downcase.chars[0] %}
@@ -287,6 +285,8 @@ module StringCase
                 {% else %}
                 when {{cup}}, {{cdn}}
                 {% end %}
+              {% else %}
+              when {{c}}
               {% end %}
               {% if save_mark %}
                 {{case_io}}.marker = {{case_io}}.cursor
@@ -295,9 +295,9 @@ module StringCase
                 {% if !save_mark %}
                 {{case_io}}.marker = {{case_io}}.cursor
                 {% end %}
-                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{case_sensitive}}, {{has_end_here}}, {{not_matched}}, {{m[c].splat}})
+                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{case_insensitive}}, {{has_end_here}}, {{not_matched}}, {{m[c].splat}})
               {% else %}
-                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{case_sensitive}}, nil, {{not_matched}}, {{m[c].splat}})
+                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{case_insensitive}}, nil, {{not_matched}}, {{m[c].splat}})
               {% end %}
             {% end %}
         else
@@ -336,10 +336,23 @@ module StringCase
     {% end %}
   end
 
-  macro strcase_base(test_eof, case_sensitive, case_stmt)
+  macro strcase_base(case_stmt, **options)
+    {% if case_stmt.is_a?(Block) %}
+      {% case_stmt = case_stmt.body %}
+    {% end %}
+    {% if case_stmt.is_a?(Expressions) %}
+      {% exps = case_stmt.expressions %}
+      {% if exps.size == 1 %}
+        {% case_stmt = exps[0] %}
+      {% else %}
+        {% raise "Expected single Case statement expression" %}
+      {% end %}
+    {% end %}
     {% if !case_stmt.is_a?(Case) %}
       {% raise "case_stmt must be Case statement" %}
     {% end %}
+    {% case_insensitive = options[:case_insensitive] || false %}
+    {% test_eof = options[:complete] || false %}
     {% obj = case_stmt.cond %}
     {% whens = case_stmt.whens %}
     {% not_matched = case_stmt.else %}
@@ -349,7 +362,7 @@ module StringCase
         {% if !c.is_a?(StringLiteral) %}
           {% raise "conditionals must be a literal string" %}
         {% end %}
-        {% if !case_sensitive %}
+        {% if case_insensitive %}
           {% c = c.upcase %}
         {% end %}
         {% lists << {c, "#{w.body}"} %}
@@ -361,24 +374,28 @@ module StringCase
       {% not_matched = "#{not_matched}" %}
     {% end %}
     ::StringCase.make_recursive_case({{obj}}, true, 0, {{test_eof}},
-                                     {{case_sensitive}}, nil,
+                                     {{case_insensitive}}, nil,
                                      {{not_matched}}, {{lists.splat}})
   end
 
-  #
+  macro strcase(**options, &block)
+    ::StringCase.strcase_base({{yield}}, {{**options}})
+  end
+
   macro strcase(case_stmt)
-    ::StringCase.strcase_base(false, true, {{case_stmt}})
+    ::StringCase.strcase_base({{case_stmt}})
   end
 
   macro strcase_complete(case_stmt)
-    ::StringCase.strcase_base(true, true, {{case_stmt}})
+    ::StringCase.strcase_base({{case_stmt}}, complete: true)
   end
 
   macro strcase_complete_case_insensitive(case_stmt)
-    ::StringCase.strcase_base(true, false, {{case_stmt}})
+    ::StringCase.strcase_base({{case_stmt}}, complete: true,
+                              case_insensitive: true)
   end
 
   macro strcase_case_insensitive(case_stmt)
-    ::StringCase.strcase_base(false, false, {{case_stmt}})
+    ::StringCase.strcase_base({{case_stmt}}, case_insensitive: true)
   end
 end

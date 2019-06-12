@@ -27,10 +27,10 @@ module TLpsrc2spec
       include Enumerable(PathInfo)
       include Iterable(PathInfo)
 
-      def initialize(@files, @filesize = 0, @arch = nil)
+      def initialize(@files, *, @filesize = 0, @arch = nil)
       end
 
-      def initialize(@filesize = 0, @arch = nil, &block)
+      def initialize(*, @filesize = 0, @arch = nil, &block)
         @files = Set(PathInfo).new
         yield @files
       end
@@ -50,11 +50,103 @@ module TLpsrc2spec
       end
     end
 
-    # List of tags which builds a list from each occurances.
-    LIST_TAGS = %w[execute postaction]
+    class Execute
+      class AddMap < Execute
+        enum MapType
+          Map
+          MixedMap
+          KanjiMap
+        end
+
+        property maptype : MapType
+        property mapfile : String
+
+        def initialize(@maptype, @mapfile)
+        end
+      end
+
+      class AddFormat < Execute
+        property name : String
+        property mode : String?
+        property engine : String
+        property patterns : String?
+        property options : String
+        property fmttriggers : Array(String)?
+
+        def initialize(*, @name, @mode, @engine, @patterns,
+                       @options, @fmttriggers)
+        end
+
+        def enabled?
+          mode != "disabled"
+        end
+      end
+
+      class AddHyphen < Execute
+        property name : String
+        property lefthyphenmin : String
+        property righthyphenmin : String
+        property synonyms : String?
+        property file : String
+        property file_patterns : String
+        property file_exceptions : String
+
+        def initialize(*, @name, @lefthyphenmin, @righthyphenmin,
+                       @synonyms, @file, @file_patterns, @file_exceptions)
+        end
+      end
+    end
+
+    class PostAction
+      class ShortCut < PostAction
+        property type : String
+        property name : String
+        property cmd : String
+
+        def initialize(*, @type, @name, @cmd)
+        end
+      end
+
+      class FileType < PostAction
+        property name : String
+        property cmd : String
+
+        def initialize(*, @name, @cmd)
+        end
+      end
+
+      class FileAssoc < PostAction
+        property extension : String
+        property filetype : String
+
+        def initialize(*, @extension, @filetype)
+        end
+      end
+
+      class Script < PostAction
+        property file : String
+
+        def initialize(*, @file)
+        end
+      end
+    end
+
+    # List of tags which builds an execute command from each occurances.
+    EXEC_TAGS = [
+      {name: "execute", var_symbol: "executes"},
+    ]
+
+    # List of tags which is used for post action from postaction
+    POSTACT_TAGS = [
+      {name: "postaction", var_symbol: "postactions"},
+    ]
 
     # List of tags which builds a list from each words.
-    WORDS_TAGS = %w[catalogue-topics catalogue-also depend]
+    WORDS_TAGS = [
+      "catalogue-topics",
+      {name: "catalogue-also", var_symbol: "catalogue_alsoes"},
+      {name: "depend", var_symbol: "depends"},
+    ]
 
     # List of tags which stores a integer data
     INTEGER_TAGS = %w[revision relocated
@@ -78,12 +170,13 @@ module TLpsrc2spec
     FILES_TAGS = %w[runfiles srcfiles binfiles docfiles]
 
     ALL_TAGS_DATA_TYPE = {
-      single:  {keys: SINGLE_TAGS, type: String},
-      integer: {keys: INTEGER_TAGS, type: Int32},
-      time:    {keys: TIME_TAGS, type: Time},
-      list:    {keys: LIST_TAGS, type: Array(String)},
-      long:    {keys: LONG_TAGS, type: String},
-      files:   {keys: FILES_TAGS, type: Files},
+      single:  {keys: SINGLE_TAGS, type: String?},
+      integer: {keys: INTEGER_TAGS, type: Int32?},
+      time:    {keys: TIME_TAGS, type: Time?},
+      exec:    {keys: EXEC_TAGS, type: Array(Execute)},
+      postact: {keys: POSTACT_TAGS, type: Array(PostAction)},
+      long:    {keys: LONG_TAGS, type: String?},
+      files:   {keys: FILES_TAGS, type: Array(Files)},
       words:   {keys: WORDS_TAGS, type: Array(String)},
     }
 
@@ -92,13 +185,31 @@ module TLpsrc2spec
       # with compiled into executable file.
       ALL_TAGS_DATA = {
       {% for t, sym in ALL_TAGS_DATA_TYPE %}
-        {% for name in sym[:keys].resolve %}
-        {{name}} => {
-          name: {{name}},
-          type: :{{t.id}},
-          const_symbol: :{{name.upcase.gsub(/-/, "_").id}},
-          var_symbol: :{{name.gsub(/-/, "_").id}},
-          data_type: {{sym[:type]}},
+        {% for data in sym[:keys].resolve %}
+          {% if data.is_a?(NamedTupleLiteral) %}
+            {% var_symbol = data[:var_symbol] %}
+            {% const_symbol = data[:const_symbol] %}
+            {% name = data[:name] %}
+            {% if !name %}
+              {% raise "TLPDB tag name is not given" %}
+            {% end %}
+          {% else %}
+            {% var_symbol = nil %}
+            {% const_symbol = nil %}
+            {% name = data %}
+          {% end %}
+          {% if !var_symbol %}
+            {% var_symbol = name.gsub(/-/, "_") %}
+          {% end %}
+          {% if !const_symbol %}
+            {% const_symbol = var_symbol.upcase %}
+          {% end %}
+          {{name}} => {
+            name: {{name}},
+            type: :{{t.id}},
+            const_symbol: :{{const_symbol.id}},
+            var_symbol: :{{var_symbol.id}},
+            data_type: {{sym[:type]}},
         },
         {% end %}
       {% end %}
@@ -174,7 +285,7 @@ module TLpsrc2spec
 
     class Package
       {% for name, data in ALL_TAGS_DATA %}
-        getter {{data[:var_symbol].id}} : {{data[:data_type]}}?
+        getter {{data[:var_symbol].id}} : {{data[:data_type]}}
       {% end %}
 
       {% begin %}
@@ -220,29 +331,43 @@ module TLpsrc2spec
       @db : TLPDB
       @buf : StringCase::Buffer
       @lexeme : Int32 = -1
+
       {% begin %}
-      @pkg_data_buffer : NamedTuple(
+        {% types = {} of Symbol => String %}
         {% for name, val in ALL_TAGS_DATA %}
-          {% if val[:data_type].stringify == "Array(String)" %}
-            {{val[:var_symbol].id}}: Array(String),
+          {% if val[:data_type].stringify.starts_with? "Array(" %}
+            {% types[val[:var_symbol]] = val[:data_type] %}
           {% elsif val[:data_type].stringify == "Files" %}
-            {{val[:var_symbol].id}}: Hash(String?, Hash(String, String)?),
+            {% types[val[:var_symbol]] = "Array(Files)" %}
           {% else %}
-            {{val[:var_symbol].id}}: IO::Memory,
+            {% types[val[:var_symbol]] = "IO::Memory" %}
           {% end %}
         {% end %}
-      ) = {
-        {% for name, val in ALL_TAGS_DATA %}
-          {% if val[:data_type].stringify == "Array(String)" %}
-            {{val[:var_symbol].id}}: [] of String,
-          {% elsif val[:data_type].stringify == "Files" %}
-            {{val[:var_symbol].id}}: {} of String? => Hash(String, String)?,
-          {% else %}
-            {{val[:var_symbol].id}}: IO::Memory.new,
-          {% end %}
-        {% end %}
-      }
+
+        alias DataBufferType = NamedTuple(
+                {% for name, val in types %}
+                  {{name.id}}: {{val.id}},
+                {% end %}
+              )
+
+        def self.clear_data_buffer(old : DataBufferType? = nil) : DataBufferType
+          if old
+            {
+              {% for name, val in types %}
+                {{name.id}}: old[:{{name.id}}].tap { |x| x.clear },
+              {% end %}
+            }
+          else
+            {
+              {% for name, val in types %}
+                {{name.id}}: {{val.id}}.new,
+              {% end %}
+            }
+          end
+        end
       {% end %}
+
+      @pkg_data_buffer : DataBufferType = Parser.clear_data_buffer
 
       def initialize(io : IO, @db, bytesize : Int = 32)
         @buf = StringCase::Buffer.new(io, bytesize)
@@ -335,33 +460,20 @@ module TLpsrc2spec
         data.dup # Create a shallow copy (because `data` will be cleared)
       end
 
+      private def get_exec_data(data : Array(Execute))
+        data.dup
+      end
+
+      private def get_postact_data(data : Array(PostAction))
+        data.dup
+      end
+
       private def get_words_data(data : Array(String))
         get_list_data(data)
       end
 
-      private def get_files_data(data : Hash(String?, Hash(String, String)?))
-        arch = nil
-        size = 0
-        global_info = data[nil]?
-        if global_info
-          if global_info.has_key?("size")
-            size = global_info["size"].to_i
-          end
-          arch = global_info["arch"]?
-        end
-
-        Files.new(size, arch) do |lst|
-          data.each do |path, info|
-            next if path.nil?
-            if info
-              lst << PathInfo.new(path,
-                details: info["details"]?,
-                language: info["language"]?)
-            else
-              lst << PathInfo.new(path)
-            end
-          end
-        end
+      private def get_files_data(data : Array(Files))
+        data.dup
       end
 
       private def add_package
@@ -376,9 +488,7 @@ module TLpsrc2spec
       end
 
       private def new_package
-        @pkg_data_buffer.each do |key, val|
-          val.clear
-        end
+        @pkg_data_buffer = Parser.clear_data_buffer(@pkg_data_buffer)
       end
 
       private def process_single(sym : Symbol)
@@ -402,23 +512,144 @@ module TLpsrc2spec
         process_single(sym)
       end
 
-      private def parse_keyval(valid_keys : Set(String)? = nil) : Hash(String, String)
-        hsh = {} of String => String
+      macro parse_keyval(*keys, **valid_keys)
+        {% data = {} of Symbol => (String | NamedTuple) %}
+        {% for str in keys %}
+          {% if str.is_a?(NamedTupleLiteral) %}
+            {% data[str[:str].id] = str %}
+          {% else %}
+            {% data[str.id] = str %}
+          {% end %}
+        {% end %}
+        {% for key, val in valid_keys %}
+          {% data[key.id] = val %}
+        {% end %}
+        {% for key, val in data %}
+          {% if val.is_a?(NamedTupleLiteral) %}
+            {% str = val[:str] %}
+            {% if !str %}
+              {% raise "Matching string not given" %}
+            {% end %}
+          {% elsif val.is_a?(StringLiteral) %}
+            {% data[key] = {str: val} %}
+          {% else %}
+            {% raise "#{val} must be StringLiteral or NamedTupleLiteral" %}
+          {% end %}
+        {% end %}
+
+        %io = StringCase::Single.new(64)
+        ret = parse_keyval_run do |ov, key, val|
+          %io.clear
+          %io.print(key)
+          %io.pos = 0
+          StringCase.strcase do
+            case %io
+                 {% for key, val in data %}
+                 when {{val[:str]}}
+                   {
+                     {% for skey, sval in data %}
+                       {% if skey == key %}
+                           {{key.id}}: val,
+                       {% else %}
+                         {% k = skey.id %}
+                         {{k}}: ((ov && ov[:{{k}}]?) ? ov[:{{k}}] : nil),
+                         {% end %}
+                     {% end %}
+                   }
+                 {% end %}
+            else
+              raise ParseError.new("Invalid key '#{key}'\n" +
+                                   @buf.debug_cursor)
+              end
+          end
+        end
+        {% mand = [] of Symbol %}
+        {% for key, val in data %}
+          {% if val[:mandatory] %}
+            {% mand << key %}
+          {% end %}
+        {% end %}
+        {% if mand.size > 0 %}
+          if !ret || [
+              {% for x in mand %}
+                :{{x.id}},
+              {% end %}
+            ].any? { |k| !ret[k] }
+            {% mand_j = mand.join(", ") %}
+            {% v = (mand.size > 1) ? "are" : "is" %}
+            {% d = (mand.size > 1) ? "s" : "" %}
+            not_founds = [
+              {% for x in mand %}
+                :{{x.id}},
+              {% end %}
+            ]
+            if ret
+              not_founds = not_founds.compact_map { |k| (!ret[k]) ? k : nil }
+            end
+            if not_founds.size > 1
+              v = "are"
+            else
+              v = "is"
+            end
+            raise ParseError.new("Key{{d.id}} {{mand_j.id}} {{v.id}} mandatory, but #{not_founds.join(", ")} #{v} not found!\n" + @buf.debug_cursor)
+          else
+            {
+              {% for key, val in data %}
+                {% if val[:mandatory] %}
+                  {{key.id}}: ret[:{{key.id}}].not_nil!,
+                {% else %}
+                  {{key.id}}: ret[:{{key.id}}],
+                {% end %}
+              {% end %}
+            }
+          end
+        {% else %}
+          {
+            {% for key, val in data %}
+              {{key.id}}: ret ? ret[:{{key.id}}] : nil,
+            {% end %}
+          }
+        {% end %}
+      end
+
+      private def keyval_quote(buf, instr, chr)
+        if instr == nil || instr == chr
+          if instr.nil?
+            instr = chr
+          else
+            instr = nil
+          end
+          if instr == chr
+            @buf.token = @buf.cursor
+          else
+            slice = @buf.token_slice
+            if slice
+              buf.write(slice[0...-1])
+            end
+            @buf.token = -1
+          end
+        end
+        instr
+      end
+
+      private def parse_keyval_run(&block)
+        nt = nil
         key = nil
         buf = IO::Memory.new
-        instr = false
+        instr : Char? = nil
         @buf.token = @buf.cursor
         while !@buf.eof?
           ch = @buf.next_char
           case ch
           when ' ', '\n'
-            if !instr
+            if instr.nil?
               str = @buf.token_slice
               if str && str.size > 0
                 buf.write(str[0...-1])
               end
               if buf.size > 0 && key && key.size > 0
-                hsh[key] = String.new(buf.buffer, buf.size)
+                value = String.new(buf.buffer, buf.size)
+                nt = yield(nt, key, value)
               end
               if ch == '\n'
                 @buf.token = -1
@@ -435,10 +666,6 @@ module TLpsrc2spec
               end
               if buf.size > 0
                 key = String.new(buf.buffer, buf.size)
-                if valid_keys && valid_keys.size > 0 && !valid_keys.includes?(key)
-                  raise ParseError.new("Invalid key '#{key}'\n" +
-                                       @buf.debug_cursor)
-                end
               else
                 raise ParseError.new("Empty key found\n" +
                                      @buf.debug_cursor)
@@ -447,56 +674,179 @@ module TLpsrc2spec
               buf.clear
             end
           when '"'
-            instr = !instr
-            if instr
-              @buf.token = @buf.cursor
-            else
-              slice = @buf.token_slice
-              if slice
-                buf.write(slice[0...-1])
-              end
-              @buf.token = -1
-            end
+            instr = keyval_quote(buf, instr, '"')
+          when '\''
+            instr = keyval_quote(buf, instr, '\'')
           end
         end
-        hsh
+        nt
       end
 
       private def process_files(sym : Symbol)
-        lst = @pkg_data_buffer[sym].as(Hash(String?, Hash(String, String)?))
-        lst.clear
-        entries = parse_keyval(Set{"size", "arch"})
-        if entries.size > 0
-          lst[nil] = entries
-        end
-        while !@buf.eof?
-          ch = @buf.peek_char
-          if ch != ' '
-            break
+        lst = @pkg_data_buffer[sym].as(Array(Files))
+        entries = parse_keyval("size", "arch")
+        size = 0
+        if entries && (strsz = entries[:size])
+          if strsz
+            size = strsz.to_i
           end
-          @buf.next_char
-          @buf.token = @buf.cursor
-          while !@buf.eof? && (ch = @buf.next_char) == ' '
+        end
+        args = {
+          filesize: size,
+          arch:     (entries ? entries[:arch] : nil),
+        }
+        files = Files.new(**args) do |set|
+          while !@buf.eof?
+            ch = @buf.peek_char
+            if ch != ' '
+              break
+            end
+            @buf.next_char
             @buf.token = @buf.cursor
-          end
-          break if @buf.eof?
-          while !@buf.eof? && (ch = @buf.next_char)
-            break if ch == ' ' || ch == '\n'
-          end
-          slice = @buf.token_slice
-          @buf.token = -1
-          filename = nil
-          if slice
+            while !@buf.eof? && (ch = @buf.next_char) == ' '
+              @buf.token = @buf.cursor
+            end
+            break if @buf.eof?
+            while !@buf.eof? && (ch = @buf.next_char)
+              break if ch == ' ' || ch == '\n'
+            end
+            slice = @buf.token_slice
+            @buf.token = -1
+            if !slice
+              raise ParseError.new("Expected filename token\n" +
+                                   @buf.debug_cursor)
+            end
             filename = String.new(slice[0...-1])
-          end
-          break if @buf.eof?
-          if ch != '\n'
-            info = parse_keyval(Set{"details", "language"})
-          else
+            break if @buf.eof?
             info = nil
+            if ch != '\n'
+              info = parse_keyval("details", "language")
+            end
+            if info
+              pi = PathInfo.new(filename, **info)
+            else
+              pi = PathInfo.new(filename)
+            end
+            set.add(pi)
           end
-          lst[filename] = info
         end
+        lst << files
+      end
+
+      private def process_addmap
+        maptype = StringCase.strcase \
+          case @buf
+        when "Map "
+          Execute::AddMap::MapType::Map
+        when "MixedMap "
+          Execute::AddMap::MapType::MixedMap
+        when "KanjiMap "
+          Execute::AddMap::MapType::KanjiMap
+        else
+          raise ParseError.new("Unsupported Map type\n" +
+                               @buf.debug_cursor)
+        end
+        mapfile = get_rest_line
+        Execute::AddMap.new(maptype, String.new(mapfile).chomp)
+      end
+
+      private def process_addformat
+        info = parse_keyval({str: "name", mandatory: true},
+          "mode", {str: "engine", mandatory: true},
+          "patterns", {str: "options", mandatory: true},
+          "fmttriggers")
+        if info.nil?
+          raise ParseError.new("No AddFormat data found\n" +
+                               @buf.debug_cursor)
+        end
+        if t = info[:fmttriggers]?
+          fmttriggers = t.split(",")
+        end
+        Execute::AddFormat.new(name: info[:name],
+          mode: info[:mode]?,
+          engine: info[:engine],
+          patterns: info[:patterns]?,
+          options: info[:options],
+          fmttriggers: fmttriggers)
+      end
+
+      private def process_addhyphen
+        info = parse_keyval({str: "name", mandatory: true},
+          {str: "lefthyphenmin", mandatory: true},
+          {str: "righthyphenmin", mandatory: true},
+          "synonyms",
+          {str: "file", mandatory: true},
+          {str: "file_patterns", mandatory: true},
+          {str: "file_exceptions", mandatory: true})
+        Execute::AddHyphen.new(name: info[:name],
+          lefthyphenmin: info[:lefthyphenmin],
+          righthyphenmin: info[:righthyphenmin],
+          synonyms: info[:synonyms],
+          file: info[:file],
+          file_patterns: info[:file_patterns],
+          file_exceptions: info[:file_exceptions])
+      end
+
+      private def process_exec(sym : Symbol)
+        com : Execute? = nil
+        StringCase.strcase \
+          case @buf
+        when "add" # fontmap
+          com = process_addmap
+        when "AddFormat "
+          com = process_addformat
+        when "AddHyphen "
+          com = process_addhyphen
+        else
+          raise ParseError.new("Unsupported Execute type\n" +
+                               @buf.debug_cursor)
+        end
+        lst = @pkg_data_buffer[sym].as(Array(Execute))
+        lst << com.not_nil!
+      end
+
+      private def process_shortcut
+        info = parse_keyval({str: "type", mandatory: true},
+          {str: "name", mandatory: true},
+          {str: "cmd", mandatory: true})
+        PostAction::ShortCut.new(**info)
+      end
+
+      private def process_filetype
+        info = parse_keyval({str: "name", mandatory: true},
+          {str: "cmd", mandatory: true})
+        PostAction::FileType.new(**info)
+      end
+
+      private def process_fileassoc
+        info = parse_keyval({str: "extension", mandatory: true},
+          {str: "filetype", mandatory: true})
+        PostAction::FileAssoc.new(**info)
+      end
+
+      private def process_script
+        info = parse_keyval({str: "file", mandatory: true})
+        PostAction::Script.new(**info)
+      end
+
+      private def process_postact(sym : Symbol)
+        com : PostAction? = nil
+        StringCase.strcase \
+          case @buf
+        when "shortcut "
+          com = process_shortcut
+        when "filetype "
+          com = process_filetype
+        when "fileassoc "
+          com = process_fileassoc
+        when "script "
+          com = process_script
+        else
+          raise ParseError.new("Unsupported PostAction type\n" +
+                               @buf.debug_cursor)
+        end
+        lst = @pkg_data_buffer[sym].as(Array(PostAction))
+        lst << com.not_nil!
       end
 
       private def process_list(sym : Symbol)
@@ -624,10 +974,10 @@ module TLpsrc2spec
       query_integer_data(data, query[1], query[0])
     end
 
-    private def qeury_list_data(data : Array(String),
-                                query : Array(String),
+    private def qeury_list_data(data : Array(T),
+                                query : Array(T),
                                 amode : ArrayQuery = ArrayQuery::All,
-                                vmode : ValueQeury = ValueQeury::EQ)
+                                vmode : ValueQeury = ValueQeury::EQ) forall T
       case amode
       when ArrayQuery::All
         data.zip(query).all? do |a, b|
@@ -666,17 +1016,21 @@ module TLpsrc2spec
       end
     end
 
-    private def query_files_data(data : Files, query : String | Regex,
+    private def query_files_data(data : Array(Files), query : String | Regex,
                                  amode : ArrayQuery = ArrayQuery::Any,
                                  vmode : ValueQuery = ValueQuery::EQ,
                                  fmode : FileQuery = FileQuery::BaseName)
       if amode == ArrayQuery::Any
-        data.any? do |x|
-          query_files_path_comp(x.path, query, vmode, fmode)
+        data.any? do |set|
+          set.any? do |x|
+            query_files_path_comp(x.path, query, vmode, fmode)
+          end
         end
       else
-        data.all? do |x|
-          query_files_path_comp(x.path, query, vmode, fmode)
+        data.all? do |set|
+          set.all? do |x|
+            query_files_path_comp(x.path, query, vmode, fmode)
+          end
         end
       end
     end

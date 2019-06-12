@@ -5,6 +5,8 @@ depend c
 depend d
 revision 1000
 catalogue-date 2019-01-01 01:00:00 +01:00
+execute addMap foo.map
+postaction script file='test.rb --with="quote"'
 binfiles size=1 arch=x86_64-linux
  bin/tex
 
@@ -15,6 +17,7 @@ longdesc bar
 longdesc baz
 shortdesc desc
 revision 100
+execute AddFormat name=test engine=tex options="options"
 runfiles 
  texmf/tex/latex/test/test.sty
 

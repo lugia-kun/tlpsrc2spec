@@ -40,7 +40,7 @@ module TLpsrc2spec
       This is a description of sub2 package.
       EOD
       sub2.requires << RPM::Require.new("master", RPM::Version.new("1"),
-                                        RPM::Sense::GREATER, nil)
+        RPM::Sense::GREATER, nil)
     end
 
     def master_package

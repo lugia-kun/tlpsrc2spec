@@ -133,6 +133,10 @@ module TLpsrc2spec
         write_tag_line(io, "Release", package.release)
       when RPM::Tag::License
         write_tag_line(io, "License", package.license, join: " and ")
+      when RPM::Tag::URL
+        if package.url
+          write_tag_line(io, "URL", package.url)
+        end
       when RPM::Tag::RequireName
         write_tag_depends(io, "Requires", package.requires)
       when RPM::Tag::ObsoleteName
@@ -152,22 +156,22 @@ module TLpsrc2spec
       when RPM::Tag::Description
         if package.description
           write_tag_paragraph(io, "description", @master.name,
-                              package.name, package.description)
+            package.name, package.description)
         end
       when RPM::Tag::PostIn
         if package.post
           write_tag_paragraph(io, "post", @master.name,
-                              package.name, package.post)
+            package.name, package.post)
         end
       when RPM::Tag::PostTrans
         if package.posttrans
           write_tag_paragraph(io, "posttrans", @master.name,
-                              package.name, package.posttrans)
+            package.name, package.posttrans)
         end
       when RPM::Tag::PostUn
         if package.postun
           write_tag_paragraph(io, "postun", @master.name,
-                              package.name, package.postun)
+            package.name, package.postun)
         end
       else
         raise "Unsupported tag name: #{tagname}"
@@ -181,6 +185,7 @@ module TLpsrc2spec
       write_tag(io, @master, RPM::Tag::Release)
       write_tag(io, @master, RPM::Tag::License)
       write_tag(io, @master, RPM::Tag::Group)
+      write_tag(io, @master, RPM::Tag::URL)
       write_tag(io, @master, RPM::Tag::BuildArchs)
       write_tag(io, @master, RPM::Tag::RequireName)
       write_tag(io, @master, RPM::Tag::ObsoleteName)
@@ -201,6 +206,7 @@ module TLpsrc2spec
         if pkg.license.size > 0
           write_tag(io, pkg, RPM::Tag::License)
         end
+        write_tag(io, pkg, RPM::Tag::URL)
         write_tag(io, pkg, RPM::Tag::BuildArchs)
         write_tag(io, pkg, RPM::Tag::RequireName)
         write_tag(io, pkg, RPM::Tag::ObsoleteName)
@@ -268,53 +274,53 @@ module TLpsrc2spec
         ssfp.token = ssfp.cursor
         StringCase.strcase \
           case ssfp
-          when "@@"
-            StringCase.strcase \
-              case ssfp
-              when "MASTER@@"
-                yield(TemplateTag::MASTER)
-                susp = true
-              when "SUB_PACKAGES@@"
-                yield(TemplateTag::SUB_PACKAGES)
-              when "DESCRIPTION_MASTER@@"
-                yield(TemplateTag::DESCRIPTION_MASTER)
-                susp = true
-              when "SCRIPTS@@"
-                yield(TemplateTag::SCRIPTS)
-              when "FILES@@"
-                yield(TemplateTag::FILES)
-              when "END_MASTER@@"
-                yield(TemplateTag::END_MASTER)
-                susp = false
-              when "END_DESCRIPTION_MASTER@@"
-                yield(TemplateTag::END_DESCRIPTION_MASTER)
-                susp = false
-              else
-                raise "Invalid Template Tag:\n" + ssfp.debug_cursor
-              end
-            if yych != '\n'
-              while !ssfp.eof?
-                case ssfp.next_char
-                when '\n'
-                  break
-                when ' ', '\t'
-                else
-                  raise "Unexpected token:\n" + ssfp.debug_cursor
-                end
-              end
-            end
+        when "@@"
+          StringCase.strcase \
+            case ssfp
+          when "MASTER@@"
+            yield(TemplateTag::MASTER)
+            susp = true
+          when "SUB_PACKAGES@@"
+            yield(TemplateTag::SUB_PACKAGES)
+          when "DESCRIPTION_MASTER@@"
+            yield(TemplateTag::DESCRIPTION_MASTER)
+            susp = true
+          when "SCRIPTS@@"
+            yield(TemplateTag::SCRIPTS)
+          when "FILES@@"
+            yield(TemplateTag::FILES)
+          when "END_MASTER@@"
+            yield(TemplateTag::END_MASTER)
+            susp = false
+          when "END_DESCRIPTION_MASTER@@"
+            yield(TemplateTag::END_DESCRIPTION_MASTER)
+            susp = false
           else
-            if yych != '\n'
-              while !ssfp.eof?
-                if ssfp.next_char == '\n'
-                  break
-                end
+            raise "Invalid Template Tag:\n" + ssfp.debug_cursor
+          end
+          if yych != '\n'
+            while !ssfp.eof?
+              case ssfp.next_char
+              when '\n'
+                break
+              when ' ', '\t'
+              else
+                raise "Unexpected token:\n" + ssfp.debug_cursor
               end
-            end
-            if !susp
-              yield(ssfp.token_slice.not_nil!)
             end
           end
+        else
+          if yych != '\n'
+            while !ssfp.eof?
+              if ssfp.next_char == '\n'
+                break
+              end
+            end
+          end
+          if !susp
+            yield(ssfp.token_slice.not_nil!)
+          end
+        end
       end
     end
 

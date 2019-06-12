@@ -35,7 +35,7 @@ module TLpsrc2spec
       io << severity.to_s.downcase << ": " << mesg
     end
   end
-  LEVEL             = Logger::Severity::INFO
+  LEVEL = Logger::Severity::INFO
 
   PREFIX         = RPM["_prefix"]
   DATADIR        = RPM["_datadir"]
@@ -45,6 +45,7 @@ module TLpsrc2spec
   SHAREDSTATEDIR = RPM["_sharedstatedir"]
   LOCALSTATEDIR  = RPM["_localstatedir"]
   SYSCONFDIR     = RPM["_sysconfdir"]
+  MANDIR         = RPM["_mandir"]
 
   OLDTEXMFDIR       = `kpsewhich -var-value TEXMFMAIN`.chomp
   OLDTEXMFDISTDIR   = `kpsewhich -var-value TEXMFDIST`.chomp
@@ -160,6 +161,7 @@ module TLpsrc2spec
     property description : String?
     property group : String?
     property summary : String?
+    property url : String?
     property requires : Array(String | RPM::Dependency)
     property version : String?
     property release : String?
@@ -177,8 +179,8 @@ module TLpsrc2spec
     property license : Array(String)
     property? archdep : Bool
 
-    def initialize(@name, *, @description = nil,
-                   @group = nil, @summary = nil, @archdep = false,
+    def initialize(@name, *, @description = nil, @group = nil, @summary = nil,
+                   @url = nil, @archdep = false,
                    @requires = ([] of String | RPM::Dependency),
                    @version = nil, @license = ([] of String),
                    @release = nil, @files = ([] of FileEntry), @post = nil,
