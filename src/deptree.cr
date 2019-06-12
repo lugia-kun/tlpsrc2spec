@@ -36,7 +36,7 @@ module TLpsrc2spec
         @db[name] = node
         package.tlpdb_pkgs.each do |tlpkg|
           tlpname = tlpkg.name.not_nil!
-          if (binfiles = tlpkg.binfiles)
+          tlpkg.binfiles.each do |binfiles|
             if (arch = binfiles.arch)
               if tlpname.ends_with?(arch)
                 tlpname = tlpname[0...(-arch.size)] + "ARCH"
@@ -57,19 +57,17 @@ module TLpsrc2spec
           end
 
           @tlpkg_map[tlpname] = package
-          if (deps = tlpkg.depend)
-            deps.each do |dep|
-              if @tlpkg_map.has_key?(dep)
-                pkg = @tlpkg_map[dep]
-                if pkg != package
-                  node.depends.add(pkg)
-                end
+          tlpkg.depends.each do |dep|
+            if @tlpkg_map.has_key?(dep)
+              pkg = @tlpkg_map[dep]
+              if pkg != package
+                node.depends.add(pkg)
+              end
+            else
+              if (unresolved = @unresolved_tlpkg_deps[dep]?)
+                unresolved.add node
               else
-                if (unresolved = @unresolved_tlpkg_deps[dep]?)
-                  unresolved.add node
-                else
-                  @unresolved_tlpkg_deps[dep] = Set{node}
-                end
+                @unresolved_tlpkg_deps[dep] = Set{node}
               end
             end
           end

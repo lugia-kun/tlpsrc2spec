@@ -88,11 +88,13 @@ module TLpsrc2spec
         property righthyphenmin : String
         property synonyms : String?
         property file : String
-        property file_patterns : String
-        property file_exceptions : String
+        property file_patterns : String?
+        property file_exceptions : String?
+        property luaspecial : String?
 
         def initialize(*, @name, @lefthyphenmin, @righthyphenmin,
-                       @synonyms, @file, @file_patterns, @file_exceptions)
+                       @synonyms, @file, @file_patterns, @file_exceptions,
+                       @luaspecial)
         end
       end
     end
@@ -112,6 +114,14 @@ module TLpsrc2spec
         property cmd : String
 
         def initialize(*, @name, @cmd)
+        end
+      end
+
+      class ProgId < PostAction
+        property extension : String
+        property filetype : String
+
+        def initialize(*, @extension, @filetype)
         end
       end
 
@@ -558,9 +568,12 @@ module TLpsrc2spec
                    }
                  {% end %}
             else
-              raise ParseError.new("Invalid key '#{key}'\n" +
+              raise ParseError.new("Invalid key '#{key}'. Expecting one of:\n" +
+                                   {% for key, val in data %}
+                                     " * {{key.id}}\n" +
+                                   {% end %}
                                    @buf.debug_cursor)
-              end
+            end
           end
         end
         {% mand = [] of Symbol %}
@@ -637,26 +650,28 @@ module TLpsrc2spec
         key = nil
         buf = IO::Memory.new
         instr : Char? = nil
-        @buf.token = @buf.cursor
+        @buf.token = -1
         while !@buf.eof?
           ch = @buf.next_char
           case ch
-          when ' ', '\n'
+          when ' ', '\t', '\n'
             if instr.nil?
-              str = @buf.token_slice
-              if str && str.size > 0
-                buf.write(str[0...-1])
+              if @buf.token >= 0 || buf.size > 0
+                str = @buf.token_slice
+                if str && str.size > 0
+                  buf.write(str[0...-1])
+                end
+                # value may be empty.
+                if key && key.size > 0
+                  value = String.new(buf.buffer, buf.size)
+                  nt = yield(nt, key, value)
+                  buf.clear
+                end
               end
-              if buf.size > 0 && key && key.size > 0
-                value = String.new(buf.buffer, buf.size)
-                nt = yield(nt, key, value)
-              end
+              @buf.token = -1
               if ch == '\n'
-                @buf.token = -1
                 break
               end
-              @buf.token = @buf.cursor
-              buf.clear
             end
           when '='
             if !instr
@@ -677,6 +692,10 @@ module TLpsrc2spec
             instr = keyval_quote(buf, instr, '"')
           when '\''
             instr = keyval_quote(buf, instr, '\'')
+          else
+            if @buf.token < 0
+              @buf.token = @buf.cursor - 1
+            end
           end
         end
         nt
@@ -776,15 +795,15 @@ module TLpsrc2spec
           {str: "righthyphenmin", mandatory: true},
           "synonyms",
           {str: "file", mandatory: true},
-          {str: "file_patterns", mandatory: true},
-          {str: "file_exceptions", mandatory: true})
+          "file_patterns", "file_exceptions", "luaspecial")
         Execute::AddHyphen.new(name: info[:name],
           lefthyphenmin: info[:lefthyphenmin],
           righthyphenmin: info[:righthyphenmin],
           synonyms: info[:synonyms],
           file: info[:file],
           file_patterns: info[:file_patterns],
-          file_exceptions: info[:file_exceptions])
+          file_exceptions: info[:file_exceptions],
+          luaspecial: info[:luaspecial])
       end
 
       private def process_exec(sym : Symbol)
@@ -818,6 +837,12 @@ module TLpsrc2spec
         PostAction::FileType.new(**info)
       end
 
+      private def process_progid
+        info = parse_keyval({str: "extension", mandatory: true},
+                            {str: "filetype", mandatory: true})
+        PostAction::ProgId.new(**info)
+      end
+
       private def process_fileassoc
         info = parse_keyval({str: "extension", mandatory: true},
           {str: "filetype", mandatory: true})
@@ -839,6 +864,8 @@ module TLpsrc2spec
           com = process_filetype
         when "fileassoc "
           com = process_fileassoc
+        when "progid "
+          com = process_progid
         when "script "
           com = process_script
         else
