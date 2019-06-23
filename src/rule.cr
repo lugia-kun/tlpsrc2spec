@@ -69,5 +69,123 @@ module TLpsrc2spec
       end
       ret
     end
+
+    # Make obsolete object from RPM::Package
+    def make_obsolete(rpmpkg : RPM::Package,
+                      f : RPM::Sense = RPM::Sense::LESS | RPM::Sense::EQUAL)
+      v = rpmpkg[RPM::Tag::Version].as(String)
+      r = rpmpkg[RPM::Tag::Release].as(String)
+      e = rpmpkg[RPM::Tag::Epoch].as(UInt32?)
+      version = RPM::Version.new(v, r, e)
+      RPM::Obsolete.new(rpmpkg.name, version, f, nil)
+    end
+
+    def obsolete_if_not(obsoleter, obsolescent : RPM::Package,
+                        *, log : Bool = false, sense : RPM::Sense? = nil,
+                        &block)
+      if sense
+        dep = make_obsolete(obsolescent, sense)
+      else
+        dep = make_obsolete(obsolescent)
+      end
+      obsolete_if_not(obsoleter, dep, log: log) do |n, s, v, r|
+        yield n, s, v, r
+      end
+    end
+
+    # If obsoleter does not obsolete obsolescent, add to obsoletes.
+    #
+    # If an obsoletion added (given blocked return did not returned
+    # true for any obsoletion entries currently have), returns
+    # Dependency object.
+    #
+    # If not, returns false.
+    def obsolete_if_not(obsoleter : TLpsrc2spec::Package,
+                        obsolescent : RPM::Dependency,
+                        *, log : Bool = false, &block)
+      if !obsoleter.obsoletes.any? do |x|
+           if x.is_a?(RPM::Dependency)
+             name = x.name
+             vers = x.version.v
+             rele = x.version.r
+             sens = x.flags
+           else
+             name = x.as(String)
+             vers = nil
+             rele = nil
+             sens = RPM::Sense::ANY
+           end
+
+           yield name, sens, vers, rele
+         end
+        if log
+          self.log.info { "#{obsoleter.name} obsoletes #{obsolescent.name}" }
+        end
+
+        obsoleter.obsoletes << obsolescent
+        obsolescent
+      else
+        nil
+      end
+    end
+
+    class ObsoleterNotFound < Exception
+      def initialize(@name : String)
+      end
+
+      def to_s(io)
+        io << "Package '" << @name << "' not found"
+      end
+    end
+
+    class InstalledPackageNotFound < Exception
+      def initialize(@name : String)
+      end
+
+      def to_s(io)
+        io << "Package '" << @name << "' not found"
+      end
+    end
+
+    def obsolete_if_not(obsoleter : String,
+                        obsolescent : String | RPM::Dependency, **opts,
+                        &block)
+      if (pkg = packages?(obsoleter))
+        obsolete_if_not(pkg, obsolescent, **opts) do |n, s, v, r|
+          yield n, s, v, r
+        end
+      else
+        raise ObsoleterNotFound.new(obsoleter)
+      end
+    end
+
+    def obsolete_if_not(obsoleter : TLpsrc2spec::Package,
+                        obsolescent : String, **opts, &block)
+      o = RPM::Obsolete.new(obsolcescent)
+      obsolete_if_not(obsoleter, o, **opts) do |n, s, v, r|
+        yield n, s, v, r
+      end
+    end
+
+    def obsolete_if_not(obsoleter, obsolescent : RPM::Dependency | RPM::Package, **opts)
+      obsolete_if_not(obsoleter, obsolescent, **opts) do |n, s, v, r|
+        n == obsolescent.name
+      end
+    end
+
+    def obsolete_if_not(obsoleter, obsolescent : String, **opts)
+      obsolete_if_not(obsoleter, obsolescent, **opts) do |n, s, v, r|
+        n == obsolescent
+      end
+    end
+
+    def obsolete_installed_pkg_if_not(obsoleter, obsolescent, **opts)
+      if (pkgs = installed_pkgs[obsolescent]?)
+        pkg = pkgs.each_value.first
+        obsolete_if_not(obsoleter, pkg, **opts)
+      else
+        raise InstalledPackageNotFound.new(obsolescent)
+      end
+    end
   end
 end
