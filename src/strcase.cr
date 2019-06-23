@@ -353,6 +353,7 @@ module StringCase
     {% end %}
     {% case_insensitive = options[:case_insensitive] || false %}
     {% test_eof = options[:complete] || false %}
+    {% print_debug = options[:debug] || false %}
     {% obj = case_stmt.cond %}
     {% whens = case_stmt.whens %}
     {% not_matched = case_stmt.else %}
@@ -376,6 +377,9 @@ module StringCase
     ::StringCase.make_recursive_case({{obj}}, true, 0, {{test_eof}},
                                      {{case_insensitive}}, nil,
                                      {{not_matched}}, {{lists.splat}})
+    {% if print_debug %}
+      {% debug %}
+    {% end %}
   end
 
   macro strcase(**options, &block)
