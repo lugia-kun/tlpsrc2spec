@@ -3,7 +3,7 @@ require "rpm"
 module TLpsrc2spec
   class InstalledPackageDB
     # Base spec data for information and searching files
-    @base : RPM::Spec
+    @base : Array(RPM::Spec)
     @log : Logger
 
     # Name to package data table
@@ -14,9 +14,6 @@ module TLpsrc2spec
     getter filepaths : Hash(String, Hash(String, RPM::Package)) = {} of String => Hash(String, RPM::Package)
     # File's basename to fullpath table taken from installed package(s).
     getter files : Hash(String, Set(String)) = {} of String => Set(String)
-
-    @filepath_cached : Set(String) = Set(String).new
-    @files_cached : Set(String) = Set(String).new
 
     class PackageIterator
       class T < Hash(String, Hash(String, RPM::Package))
@@ -117,8 +114,10 @@ module TLpsrc2spec
 
     private def build_pkgs
       @log.debug { "Start building installed packages table" }
-      @base.packages.each do |pkg|
-        add_pkg(pkg)
+      @base.each do |spec|
+        spec.packages.each do |pkg|
+          add_pkg(pkg)
+        end
       end
       @log.debug { "Searching texmf directory" }
       [OLDTEXMFDISTDIR, OLDTEXMFDIR, OLDTEXMFCONFIGDIR, OLDTEXMFVARDIR].each do |dir|
@@ -129,10 +128,14 @@ module TLpsrc2spec
       @pkgs
     end
 
-    def each_package(&block)
+    private def build_pkgs_if_needed
       if @pkgs.empty?
         build_pkgs
       end
+    end
+
+    def each_package(&block)
+      build_pkgs_if_needed
       @pkgs.each_value do |h|
         h.each_value do |pkg|
           yield pkg
@@ -141,27 +144,21 @@ module TLpsrc2spec
     end
 
     def each_package
-      if @pkgs.empty?
-        build_pkgs
-      end
+      build_pkgs_if_needed
       PackageIterator.new(@pkgs.each_value)
     end
 
     def each_base_package(&block)
-      @base.packages.each do |pkg|
-        yield pkg
+      @base.each do |spec|
+        spec.packages.each do |pkg|
+          yield pkg
+        end
       end
-    end
-
-    def each_base_package
-      @base.packages.each
     end
 
     def filepath(path : String)
-      if @pkgs.empty?
-        build_pkgs
-      end
-      if !@filepath_cached.includes?(path)
+      build_pkgs_if_needed
+      if !@filepaths.has_key?(path)
         @log.debug { "Searching packages contains path '#{path}'" }
         RPM.transaction do |ts|
           iter = ts.init_iterator(RPM::DbiTag::BaseNames, path)
@@ -173,39 +170,43 @@ module TLpsrc2spec
             iter.finalize
           end
         end
-        @filepath_cached.add(path)
+        @filepaths[path]? ||
+          (@filepaths[path] = {} of String => RPM::Package)
+      else
+        @filepaths[path]
       end
-      @filepaths[path]? || Hash(String, RPM::Package).new
     end
 
     def file(name : String, look_for_rpmdb : Bool = false)
-      if @pkgs.empty?
-        build_pkgs
-      end
-      if look_for_rpmdb && !@files_cached.includes?(name)
-        @log.debug { "Searching packages contains filename '#{name}'" }
-        RPM.transaction do |ts|
-          iter = ts.init_iterator
-          begin
-            iter.regexp(RPM::DbiTag::BaseNames, RPM::MireMode::STRCMP, name)
-            iter.each do |pkg|
-              add_pkg(pkg)
+      build_pkgs_if_needed
+      if !look_for_rpmdb
+        @files[name]? || Set(String).new
+      else
+        if !@files.has_key?(name)
+          @log.debug { "Searching packages contains filename '#{name}'" }
+          RPM.transaction do |ts|
+            iter = ts.init_iterator
+            begin
+              iter.regexp(RPM::DbiTag::BaseNames, RPM::MireMode::STRCMP,
+                name)
+              iter.each do |pkg|
+                add_pkg(pkg)
+              end
+            ensure
+              iter.finalize
             end
-          ensure
-            iter.finalize
           end
+          @files[name]? || (@files[name] = Set(String).new)
+        else
+          @files[name]
         end
-        @files_cached.add(name)
       end
-      @files[name]? || Set(String).new
     end
 
     def clear
       @files.clear
       @filepaths.clear
       @pkgs.clear
-      @files_cached.clear
-      @filepath_cached.clear
     end
   end
 end

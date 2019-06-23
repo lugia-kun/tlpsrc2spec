@@ -119,15 +119,16 @@ module TLpsrc2spec
 
     def to_s(io : IO)
       first = true
+      io << "%config"
       {% for name in [:noreplace, :missingok] %}
         if @{{name.id}}
           if first
-            io << "%config("
+            io << "("
           else
             io << " "
           end
           first = false
-          io << {{name.stringify}}
+          io << {{name.id.stringify}}
         end
       {% end %}
 
@@ -172,6 +173,8 @@ module TLpsrc2spec
     property preun : String?
     property pretrans : String?
     property posttrans : String?
+    property install_script : String?
+    property build_script : String?
     property tlpdb_pkgs : Array(TLPDB::Package)
     property obsoletes : Array(String | RPM::Dependency)
     property provides : Array(String | RPM::Dependency)
@@ -185,20 +188,11 @@ module TLpsrc2spec
                    @version = nil, @license = ([] of String),
                    @release = nil, @files = ([] of FileEntry), @post = nil,
                    @postun = nil, @preun = nil, @pretrans = nil,
-                   @posttrans = nil, @tlpdb_pkgs = ([] of TLPDB::Package),
+                   @posttrans = nil, @install_script = nil,
+                   @build_script = nil, @tlpdb_pkgs = ([] of TLPDB::Package),
                    @obsoletes = ([] of String | RPM::Dependency),
                    @provides = ([] of String | RPM::Dependency),
                    @conflicts = ([] of String | RPM::Dependency))
-    end
-
-    def to_rpm_package
-      v = @version
-      if v
-        ver = RPM::Version.new(v)
-      else
-        ver = RPM::Version.new("1")
-      end
-      pkg = RPM::Package.new(@name, ver)
     end
   end
 
@@ -213,7 +207,7 @@ module TLpsrc2spec
     # Parsed data of specfile.
     getter template_data : RPM::Spec
     # Specfile data to be used for collecting installed packages and files.
-    getter installed : RPM::Spec
+    getter installed : Array(RPM::Spec)
 
     # Database generated from @installed
     getter installed_db : InstalledPackageDB
@@ -226,15 +220,17 @@ module TLpsrc2spec
     end
 
     def self.create(tlpdb_file : String, template_specfile : String,
-                    installed : String, **opts)
+                    installed : Array(String), **opts)
       @@verbose = opts[:verbose]? || false
       log.info "Reading TLPDB #{tlpdb_file}..."
       tlpdb = File.open(tlpdb_file, "r") do |fp|
         TLPDB.parse(fp)
       end
 
-      log.info "Reading Spec file #{installed}..."
-      installed = RPM::Spec.open(installed)
+      installed = installed.map do |specfile|
+        log.info "Reading Spec file #{specfile}..."
+        RPM::Spec.open(specfile)
+      end
 
       log.info "Reading Spec file #{template_specfile}..."
       template_test = IO::Memory.new
@@ -282,7 +278,7 @@ module TLpsrc2spec
 
   @@tlpdb_file : String? = nil
   @@template_specfile : String? = nil
-  @@installed_specfile : String? = nil
+  @@installed_specfile : Array(String) = [] of String
   @@log : Logger = Logger.new(STDERR, LEVEL, FORMATTER)
   @@output : String | IO = STDOUT
 
@@ -300,7 +296,7 @@ module TLpsrc2spec
         @@template_specfile = spec
       end
       opts.on("-I", "--installed=FILE", "RPM Spec file used for current installation") do |name|
-        @@installed_specfile = name
+        @@installed_specfile << name
       end
       opts.on("-o", "--output=FILE", "Output spec file name") do |path|
         @@output = path
