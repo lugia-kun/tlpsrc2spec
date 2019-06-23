@@ -45,7 +45,7 @@ module TLpsrc2spec
           end
           if @tlpkg_map.has_key?(tlpname)
             if (pkg = @tlpkg_map[tlpname]) != package
-              @app.log.warn { "#{tlpname} is provided #{pkg.name}" }
+              @app.log.warn { "#{tlpname} is provided by #{pkg.name}" }
             end
           end
 

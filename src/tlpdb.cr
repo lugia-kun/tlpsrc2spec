@@ -839,7 +839,7 @@ module TLpsrc2spec
 
       private def process_progid
         info = parse_keyval({str: "extension", mandatory: true},
-                            {str: "filetype", mandatory: true})
+          {str: "filetype", mandatory: true})
         PostAction::ProgId.new(**info)
       end
 
