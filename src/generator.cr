@@ -150,7 +150,12 @@ module TLpsrc2spec
           write_tag_line(io, "Group", package.group)
         end
       when RPM::Tag::BuildArchs
-        if !package.archdep?
+        if package.archdep?
+          if !@master.archdep?
+            # This is not allowed.
+            write_tag_line(io, "BuildArch", "%{_arch}")
+          end
+        else
           write_tag_line(io, "BuildArch", "noarch")
         end
       when RPM::Tag::Description
@@ -224,6 +229,34 @@ module TLpsrc2spec
       end
     end
 
+    def write_install_scripts(io : IO)
+      out = false
+      @packages.each do |n, pkg|
+        if pkg.install_script
+          io << "### Generated install script for " << n << "\n"
+          io << pkg.install_script
+          out = true
+        end
+      end
+      if out
+        io << "### End of generated installed scripts\n"
+      end
+    end
+
+    def write_build_scripts(io : IO)
+      out = false
+      @packages.each do |n, pkg|
+        if pkg.build_script
+          io << "### Generated build script for " << n << "\n"
+          io << pkg.install_script
+          out = true
+        end
+      end
+      if out
+        io << "### End of generated build scripts\n"
+      end
+    end
+
     def write_files(io : IO)
       @packages.each do |n, pkg|
         files_data = String.build do |builder|
@@ -261,6 +294,8 @@ module TLpsrc2spec
       DESCRIPTION_MASTER
       SUB_PACKAGES
       SCRIPTS
+      INSTALL_SCRIPTS
+      BUILD_SCRIPTS
       FILES
       END_MASTER
       END_DESCRIPTION_MASTER
@@ -272,53 +307,59 @@ module TLpsrc2spec
       susp = false
       while !ssfp.eof?
         ssfp.token = ssfp.cursor
-        StringCase.strcase \
+        StringCase.strcase do
           case ssfp
-        when "@@"
-          StringCase.strcase \
-            case ssfp
-          when "MASTER@@"
-            yield(TemplateTag::MASTER)
-            susp = true
-          when "SUB_PACKAGES@@"
-            yield(TemplateTag::SUB_PACKAGES)
-          when "DESCRIPTION_MASTER@@"
-            yield(TemplateTag::DESCRIPTION_MASTER)
-            susp = true
-          when "SCRIPTS@@"
-            yield(TemplateTag::SCRIPTS)
-          when "FILES@@"
-            yield(TemplateTag::FILES)
-          when "END_MASTER@@"
-            yield(TemplateTag::END_MASTER)
-            susp = false
-          when "END_DESCRIPTION_MASTER@@"
-            yield(TemplateTag::END_DESCRIPTION_MASTER)
-            susp = false
-          else
-            raise "Invalid Template Tag:\n" + ssfp.debug_cursor
-          end
-          if yych != '\n'
-            while !ssfp.eof?
-              case ssfp.next_char
-              when '\n'
-                break
-              when ' ', '\t'
+          when "@@"
+            StringCase.strcase do
+              case ssfp
+              when "MASTER@@"
+                yield(TemplateTag::MASTER)
+                susp = true
+              when "SUB_PACKAGES@@"
+                yield(TemplateTag::SUB_PACKAGES)
+              when "DESCRIPTION_MASTER@@"
+                yield(TemplateTag::DESCRIPTION_MASTER)
+                susp = true
+              when "SCRIPTS@@"
+                yield(TemplateTag::SCRIPTS)
+              when "INSTALL_SCRIPTS@@"
+                yield(TemplateTag::INSTALL_SCRIPTS)
+              when "BUILD_SCRIPTS@@"
+                yield(TemplateTag::BUILD_SCRIPTS)
+              when "FILES@@"
+                yield(TemplateTag::FILES)
+              when "END_MASTER@@"
+                yield(TemplateTag::END_MASTER)
+                susp = false
+              when "END_DESCRIPTION_MASTER@@"
+                yield(TemplateTag::END_DESCRIPTION_MASTER)
+                susp = false
               else
-                raise "Unexpected token:\n" + ssfp.debug_cursor
+                raise "Invalid Template Tag:\n" + ssfp.debug_cursor
               end
             end
-          end
-        else
-          if yych != '\n'
-            while !ssfp.eof?
-              if ssfp.next_char == '\n'
-                break
+            if yych != '\n'
+              while !ssfp.eof?
+                case ssfp.next_char
+                when '\n'
+                  break
+                when ' ', '\t'
+                else
+                  raise "Unexpected token:\n" + ssfp.debug_cursor
+                end
               end
             end
-          end
-          if !susp
-            yield(ssfp.token_slice.not_nil!)
+          else
+            if yych != '\n'
+              while !ssfp.eof?
+                if ssfp.next_char == '\n'
+                  break
+                end
+              end
+            end
+            if !susp
+              yield(ssfp.token_slice.not_nil!)
+            end
           end
         end
       end
@@ -335,6 +376,10 @@ module TLpsrc2spec
           write_master_description(output_io)
         when TemplateTag::SCRIPTS
           write_scripts(output_io)
+        when TemplateTag::INSTALL_SCRIPTS
+          write_install_scripts(output_io)
+        when TemplateTag::BUILD_SCRIPTS
+          write_build_scripts(output_io)
         when TemplateTag::FILES
           write_files(output_io)
         when Bytes
