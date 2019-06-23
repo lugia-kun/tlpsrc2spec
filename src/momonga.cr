@@ -19,12 +19,14 @@ module TLpsrc2spec
       end
     end
 
-    TEXMFDIR       = File.join(DATADIR, "texmf")
-    TEXMFDISTDIR   = File.join(DATADIR, "texmf-dist")
-    TEXMFLOCALDIR  = File.join(DATADIR, "texmf-local")
-    TEXMFVARDIR    = File.join(LOCALSTATEDIR, "texmf")
-    TEXMFCONFIGDIR = File.join(SYSCONFDIR, "texmf")
-    TEXMF          = [TEXMFDIR, TEXMFDISTDIR, TEXMFLOCALDIR, TEXMFVARDIR, TEXMFCONFIGDIR]
+    TEXMFDIR = File.join(DATADIR, "texmf")
+    # TEXMFDISTDIR   = File.join(DATADIR, "texmf-dist")
+    TEXMFLOCALDIR   = File.join(DATADIR, "texmf-local")
+    TEXMFVARDIR     = File.join(LOCALSTATEDIR, "lib", "texmf")
+    TEXMFCONFIGDIR  = File.join(SYSCONFDIR, "texmf")
+    TEXLIVE_HOOKDIR = File.join(LOCALSTATEDIR, "run", "texlive")
+    TEXMF           = [TEXMFDIR, TEXMFLOCALDIR, TEXMFVARDIR, TEXMFCONFIGDIR]
+
     @tree : DirectoryTree
     @master : Package
     @all_license : Set(String) = Set(String).new
@@ -127,716 +129,722 @@ module TLpsrc2spec
       tlpdb_name = tlpkg.name
       if tlpdb_name
         tlpdb_name_stream = StringCase::Single.new(tlpdb_name)
-        StringCase.strcase_complete \
+        StringCase.strcase(complete: true) do
           case tlpdb_name_stream
-        when "almfixed"
-          # See https://ctan.org/pkg/almfixed
-          # File not included
-          return "see \"GUST-FONT-LICENSE.txt\""
-        when "arphic-ttf", "arphic"
-          # See https://ctan.org/pkg/arphic
-          # See https://ctan.org/pkg/arphic-ttf
-          # arphic does not include the file.
-          # arphic-ttf wrongly detected.
-          return "see \"ARPHICPL.txt\""
-        when "awesomebox"
-          # See https://ctan.org/pkg/awesomebox
-          # WTFPL (but Momonga does not accept this)
-          return "\"WTFPL\""
-        when "bbm"
-          # See https://ctan.org/pkg/bbm
-          log.warn { "License of bbm unknown" }
-          return "see \"README\""
-        when "bbold-type1"
-          # See https://ctan.org/pkg/bbold-type1
-          return "see \"README\""
-        when "beamertheme-metropolis"
-          # See https://ctan.org/tex-archive/macros/latex/contrib/beamer-contrib/themes/metropolis
-          # CC-BY-SA 4.0 International
-          return "CC-BY-SA"
-        when "berenisadf"
-          # See https://ctan.org/tex-archive/fonts/berenisadf
-          return ["GPLv2", "see \"COPYING\", LPPL"]
-          # when "blacklettert1"
-          #  # See https://ctan.org/tex-archive/fonts/gothic/blacklettert1
-          #  # It seems slightly different to LPPL 1.2.
-          #  return "LPPL"
-        when "borceux", "breakcites"
-          # See https://ctan.org/pkg/borceux
-          # See https://ctan.org/pkg/breakcites
-          return "see \"README\""
-        when "calligra", "calligra-type1"
-          # See https://ctan.org/tex-archive/fonts/calligra
-          # See https://ctan.org/tex-archive/fonts/calligra-type1
-          return "see \"README\""
-        when "charter"
-          # See https://ctan.org/pkg/charter
-          return "see \"readme.charter\""
-        when "cherokee"
-          # See https://ctan.org/tex-archive/fonts/cherokee
-          return "see \"cherokee.mf\""
-        when "chicago"
-          # See https://ctan.org/tex-archive/biblio/bibtex/contrib/chicago
-          return "see \"chicago.sty\""
-        when "cite"
-          # See https://ctan.org/tex-archive/macros/latex/contrib/cite
-          return "see \"README\""
-        when "cjk-ko"
-          # See https://ctan.org/pkg/cjk-ko
-          return ["GPL", "LPPL", "Public Domain"]
-        when "clock"
-          # Detected COPYING is GPLv2
-          # (Maybe Incomlete to apply GPL?)
-          return "GPLv2"
-        when "codepage"
-          # See https://ctan.org/pkg/codepage
-          return "see \"README\""
-        when "colorprofile"
-          # See https://ctan.org/pkg/colorprofiles
-          return "zlib"
-        when "context"
-          # See https://ctan.org/pkg/context
-          # They say see "readme", but which file is that?
-          log.warn { "License documentation of context has not found yet" }
-          return "see \"README\""
-        when "context-mathsets"
-          # See https://ctan.org/pkg/context-mathsets
-          # See t-mathsets.tex
-          return "Modified BSD"
-        when "context-rst"
-          # See https://ctan.org/pkg/context-rst
-          # from mtx-t-rst.lua.
-          return "Modified BSD"
-        when "courseoutline"
-          # See https://ctan.org/tex-archive/macros/latex/contrib/courseoutline
-          # NOTE: courceouline.cls uses CR and LF (not CRLF) for
-          #       line-terminator.
-          return "see \"courseoutline.cls\""
-        when "coursepaper"
-          # See https://ctan.org/tex-archive/macros/latex/contrib/coursepaper
-          # NOTE: courcepaper.cls uses CR for line-terminator.
-          return "see \"coursepaper.cls\""
-        when "crossword"
-          # See https://ctan.org/pkg/crossword
-          return "see \"cwpuzzle.dtx\""
-        when "csplain"
-          # See https://ctan.org/pkg/csplain
-          return "see \"csplain.ini\""
-        when "cstex"
-          # See https://ctan.org/pkg/cstex
-          # They say this document does not mean GPLv2.
-          return "see \"lic-gpl.eng\""
-        when "cv4tw"
-          # See https://ctan.org/pkg/cv4tw
-          return "see \"LICENSE\""
-        when "dancers"
-          # See https://ctan.org/pkg/dancers
-          return "see \"dancers.mf\""
-        when "de-macro"
-          # See https://ctan.org/pkg/de-macro
-          return "see \"READNE\""
-        when "detex"
-          # See https://ctan.org/pkg/detex
-          return "see \"README\""
-        when "din1505"
-          # See https://ctan.org/pkg/din1505
-          return "see \"abbrvdin.bst\""
-        when "doc-pictex"
-          # See https://ctan.org/pkg/doc-pictex
-          return "see \"Doc-PiCTeX.txt\""
-        when "docbytex"
-          # See https://ctan.org/pkg/docbytex
-          return "see \"README\""
-        when "dotseqn"
-          # See https://ctan.org/pkg/dotseqn
-          return "see \"dotseqn.dtx\""
-        when "doublestroke"
-          # See https://ctan.org/pkg/doublestroke
-          return "see \"README\""
-        when "dvidvi"
-          # See https://ctan.org/pkg/dvidvi
-          return "see \"README\""
-        when "dvips"
-          # See https://ctan.org/pkg/dvips
-          # The file does not included 'texmf' files
-          return ["Public Domain", "GPL", "see \"README\""]
-        when "ec"
-          # See https://ctan.org/pkg/ec
-          return "see \"copyrite.txt\""
-        when "electrum"
-          # See https://ctan.org/pkg/electrumadf
-          return ["LPPL", "GPL"]
-        when "elvish"
-          # See https://ctan.org/pkg/elvish
-          return "see \"README\""
-        when "epstopdf"
-          # See https://ctan.org/pkg/epstopdf
-          return "see \"epstopdf.pl\""
-        when "eqname"
-          # See https://ctan.org/pkg/eqname
-          return "see \"eqname.sty\""
-        when "fancynum"
-          # See https://ctan.org/pkg/fancynum
-          return "LPPL"
-        when "fbithesis"
-          # See https://ctan.org/pkg/fbithesis
-          return "see \"README\""
-        when "figflow"
-          # See https://ctan.org/pkg/figflow
-          return "see \"figflow.tex\""
-        when "finbib"
-          # See https://ctan.org/pkg/finplain
-          return "see \"finplain.bst\""
-        when "fltpoint"
-          # See https://ctan.org/pkg/fltpoint
-          return "LPPL"
-        when "fonetika"
-          # See https://ctan.org/pkg/fonetika
-          # GPL and GUST FONT LICENSE.
-          return "see \"README\""
-        when "font-change"
-          # See https://ctan.org/pkg/font-change
-          # CC-BY-SA 3.0 Unported
-          return "CC-BY-SA"
-        when "font-change-xetex"
-          # See https://ctan.org/pkg/font-change-xetex
-          # CC-BY-SA 4.0 International
-          return "CC-BY-SA"
-        when "framed"
-          # See https://ctan.org/pkg/framed
-          return "see \"framed.sty\""
-        when "fundus-calligra"
-          # See https://ctan.org/pkg/fundus-calligra
-          return "LPPL"
-        when "fwlw"
-          # See https://ctan.org/pkg/fwlw
-          return "see \"fwlw.sty\""
-        when "gene-logic"
-          # See https://ctan.org/pkg/gene-logic
-          return "see \"gn-logic14.sty\""
-        when "gentium-tug"
-          # See https://ctan.org/tex-archive/fonts/gentium-tug
-          # (They say Expat License)
-          return ["OFL", "MIT"]
-        when "gentle"
-          # See https://ctan.org/pkg/gentle
-          return "see \"gentle.tex\""
-        when "germbib"
-          # See https://ctan.org/pkg/germbib
-          return "see \"gerabbrv.bst\""
-        when "gfsartemisia"
-          # See https://ctan.org/pkg/gfsartemisia
-          return ["OFL", "LPPL"]
-        when "gfsbaskerville"
-          # See https://ctan.org/pkg/gfsbaskerville
-          return ["OFL", "LPPL"]
-        when "gfsdidot"
-          # See https://ctan.org/pkg/gfsdidot
-          return ["OFL", "LPPL"]
-        when "gfsneohellenic"
-          # See https://ctan.org/pkg/gfsneohellenic
-          return ["OFL", "LPPL"]
-        when "gfsporson"
-          # See https://ctan.org/pkg/gfsporson
-          return ["OFL", "LPPL"]
-        when "harvmac"
-          # See https://ctan.org/pkg/harvmac
-          # CC-BY 3.0 Unported
-          return "Creative Commons"
-        when "hc"
-          # See https://ctan.org/pkg/hc
-          return "GPLv2"
-        when "hyph-utf8"
-          # See https://ctan.org/pkg/hyph-utf8
-          # Mainly CC0 but it is not all.
-          return "CC0"
-        when "hyphen-basque"
-          # See https://ctan.org/pkg/bahyph
-          return "see \"bahyph.tex\""
-        when "hyphen-greek"
-          # See https://ctan.org/pkg/elhyphen
-          return "see \"copyrite.txt\""
-        when "hyphen-turkish"
-          # See https://ctan.org/pkg/tkhyph
-          return "see \"tkhyph.tex\""
-        when "hyphenex"
-          # See https://ctan.org/pkg/hyphenex
-          return "see \"README\""
-        when "ifsym"
-          # See https://ctan.org/pkg/ifsym
-          return "LPPL"
-        when "index"
-          # See https://ctan.org/pkg/index
-          return ["LPPL", "see \"xplain.bst\""]
-        when "jadetex"
-          # See https://ctan.org/pkg/jadetex
-          return "see \"jadetex.dtx\""
-        when "jamtimes"
-          # See https://ctan.org/pkg/jamtimes
-          return "see \"jamtimes.dtx\""
-        when "karnaugh-map" # not "karnaughmap"
-          # See https://ctan.org/pkg/karnaugh-map
-          return "see \"README.md\""
-        when "kastrup"
-          # See https://ctan.org/pkg/binhex
-          return "see \"binhex.dtx\""
-        when "kixfont"
-          # See https://ctan.org/pkg/kixfont
-          return "see \"kix.mf\""
-        when "l2tabu"
-          # See https://ctan.org/pkg/l2tabu
-          return "see \"l2tabu.tex\""
-        when "l2tabu-italian"
-          # See https://ctan.org/pkg/l2tabu-italian
-          return "see \"l2tabuit.tex\""
-        when "latexcourse-rug"
-          # See https://ctan.org/pkg/latexcourse-rug
-          return "see \"README\""
-        when "lhcyr"
-          # See https://ctan.org/pkg/lhcyr
-          return "see \"README\""
-        when "localloc"
-          # See https://ctan.org/pkg/localloc
-          return "see \"localloc.dtx\""
-        when "lshort-german"
-          # See https://ctan.org/pkg/lshort-german
-          # The full-text license is not included.
-          return "see \"README.l2kurz\""
-        when "lshort-spanish"
-          # See https://ctan.org/pkg/lshort-spanish
-          log.warn { "License of lshort-spanish unknown" }
-          return "see \"LEAME.utf8\""
-        when "lshort-ukr"
-          # See https://ctan.org/pkg/lshort-ukr
-          # This file is included in the tarball
-          log.warn { "License of lshort-ukr unknown" }
-          return "see \"README\""
-        when "luaxml"
-          # See https://ctan.org/pkg/luaxml
-          # The full-text file not included
-          #
-          # The License of Lua changed at Lua 5.0 release. So "Lua
-          # license" is ambiguous, and we assumed the luaxml's author
-          # followed the change.
-          #
-          # return "\"Lua\""
-          return "MIT"
-        when "magaz"
-          # See https://ctan.org/pkg/magaz
-          return "see \"magaz.sty\""
-        when "makeindex"
-          # See https://ctan.org/pkg/makeindexk
-          # The file is not included in the package
-          return "see \"COPYING\""
-        when "math-into-latex-4"
-          # See https://ctan.org/pkg/math-into-latex-4
-          return "see \"README\""
-        when "mdputu"
-          # See https://ctan.org/pkg/mdputu
-          return "see \"mdputu.dtx\""
-        when "menu"
-          # See https://ctan.org/pkg/menu
-          return "LPPL"
-        when "metapost-examples"
-          # See https://ctan.org/pkg/metapost-examples
-          # Seems not to satisfy the application condition of GPL.
-          return "GPL"
-        when "midnight"
-          # See https://ctan.org/pkg/midnight
-          return "see \"README\""
-        when "mkgrkindex"
-          # See https://ctan.org/pkg/greek-makeindex
-          return "LPPL"
-        when "mpman-ru"
-          # See https://ctan.org/pkg/mpman-ru
-          log.warn { "License of mpman-ru unknown" }
-          return "see \"README\""
-        when "mslapa"
-          # See https://ctan.org/pkg/mslapa
-          return "see \"README\""
-        when "nar"
-          # See https://ctan.org/pkg/nar
-          return "see \"nar.bst\""
-        when "nestquot"
-          # See https://ctan.org/pkg/nestquot
-          return "see \"nestquot.sty\""
-        when "newsletr"
-          # See https://ctan.org/pkg/newsletr
-          return "see \"README\""
-        when "nimbus15"
-          # See https://ctan.org/pkg/nimbus15
-          return "AGPLv3"
-        when "ocr-b", "ocr-b-outline"
-          # See https://ctan.org/pkg/ocr-b
-          # See https://ctan.org/pkg/ocr-b-outline
-          return "see \"README\""
-        when "oubraces"
-          # See https://ctan.org/pkg/oubraces
-          return "see \"oubraces.sty\""
-        when "passivetex"
-          # See https://ctan.org/pkg/passivetex
-          return "see \"fotex.sty\""
-        when "path"
-          # See https://ctan.org/pkg/path
-          return "see \"path.sty\""
-        when "pictexsum"
-          # See https://ctan.org/pkg/pictexsum
-          return "see \"README\""
-        when "pkuthss"
-          # See https://ctan.org/pkg/pkuthss
-          return "see \"README\""
-        when "plweb"
-          # See https://ctan.org/pkg/pl
-          return "see \"pl.dtx\""
-        when "pnas2009"
-          # See https://ctan.org/pkg/pnas2009
-          return "see \"pnas2009.bst\""
-        when "productbox"
-          # See https://ctan.org/pkg/productbox
-          return "see \"README\""
-        when "ps2pk"
-          # See https://ctan.org/pkg/ps2pk
-          log.warn { "License of ps2pk unknown" }
-          return "see \"README\""
-        when "psfrag"
-          # See https://ctan.org/pkg/psfrag
-          return "see \"psfrag.dtx\""
-        when "ptex"
-          # See https://ctan.org/pkg/ptex
-          # This file is not included.
-          return "see \"COPYRIGHT\""
-        when "punknova"
-          # See https://ctan.org/pkg/punknova
-          return "see \"README\""
-        when "r_und_s"
-          # See https://ctan.org/pkg/r_und_s
-          return "see \"README\""
-        when "rsfs"
-          # See https://ctan.org/pkg/rsfs
-          return "see \"README\""
-        when "seetexk"
-          # See https://ctan.org/pkg/dvibook
-          log.warn { "License of dvibook unknown" }
-          return "see \"README\""
-        when "slideshow"
-          # See https://ctan.org/pkg/slideshow
-          return "see \"slideshow.mp\""
-        when "sort-by-letters"
-          # See https://ctan.org/pkg/sort-by-letters
-          return "see \"README\""
-        when "sphack"
-          # See https://ctan.org/pkg/sphack
-          return "see \"sphack.sty\""
-        when "tabls"
-          # See https://ctan.org/pkg/tabls
-          return "see \"tabls.sty\""
-        when "tds"
-          # See https://ctan.org/pkg/tds
-          return "see \"README\""
-        when "tetex"
-          log.warn { "License of tetex is incomplete" }
-          return ["LGPL2+"]
-        when "tex-refs"
-          # See https://ctan.org/pkg/tex-references
-          # This does not satisfy the application condition of GFDL.
-          return "GFDL"
-        when "threeparttable"
-          # See https://ctan.org/pkg/threeparttable
-          return "see \"threeparttable.sty\""
-        when "tie"
-          # See https://ctan.org/pkg/tie
-          log.warn { "License of tie unkown" }
-          return "see \"README\""
-        when "tikz-dimline"
-          # See https://ctan.org/pkg/tikz-dimline
-          # The full-text file is not included.
-          return "\"WTFPL\""
-        when "trigonometry"
-          # See https://ctan.org/pkg/trigonometry
-          return "see \"README.txt\""
-        when "tucv"
-          # See https://ctan.org/pkg/tucv
-          # The full-text file is not included.
-          return "CC-BY-SA"
-        when "tugboat-plain"
-          # See https://ctan.org/pkg/tugboat-plain
-          return "see \"tugboat.sty\""
-        when "ulem"
-          # See https://ctan.org/pkg/ulem
-          return "see \"README\""
-        when "undergradmath"
-          # See https://ctan.org/pkg/undergradmath
-          # The full-text license file is not included.
-          return "CC-BY-SA"
-        when "uppunctlm"
-          # See https://ctan.org/pkg/uppunctlm
-          # File not included
-          return "see \"GUST-FONT-LICENSE.txt\""
-        when "uspace"
-          # See https://ctan.org/pkg/uspace
-          return "MIT"
-        when "variablelm"
-          # See https://ctan.org/pkg/variablelm
-          # File not included
-          return "see \"GUST-FONT-LICENSE.txt\""
-        when "venturisadf"
-          # See https://ctan.org/pkg/venturisadf
-          return "LPPL"
-        when "version"
-          # See https://ctan.org/pkg/version
-          return "see \"version.sty\""
-        when "vntex"
-          # See https://ctan.org/pkg/vntex
-          return [
-            "GPL",
-            "LGPL",
-            "LPPL",
-            "see \"LICENSE-utopia.txt\"",
-          ]
-        when "wadalab"
-          # See https://ctan.org/pkg/wadalab
-          return "see \"README\""
-        when "webguide"
-          # See https://ctan.org/pkg/webguide
-          return "see \"README\""
-        when "xcharter"
-          # See https://ctan.org/pkg/xcharter
-          return [
-            "see \"README\"",
-            "LPPL",
-          ]
-        when "xdvi"
-          # See https://ctan.org/pkg/xdvi
-          log.warn { "License of xdvi unknown" }
-          return "see \"README\""
-        when "yfonts-t1"
-          # See https://ctan.org/pkg/yfonts-t1
-          log.warn { "License of yfonts-t1 unknown" }
-          return "see \"README\""
-        when "2up"
-          # According to 2up.tex
-          return "LPPL"
-        when "abstyles"
-          log.warn { "License of abstyles unknown" }
-          return "LPPL"
-        when "xetex"
-          # According to `xetex --help`
-          return "see \"COPYING\""
-        when "zed-csp"
-          return "see \"zed-csp.sty\""
-        when "uwmslide"
-          # See https://ctan.org/pkg/uwmslide
-          return "Artistic"
-        when "was"
-          # See https://ctan.org/tex-archive/macros/latex/contrib/was
-          return "LPPL"
-        when "eijkhout"
-          # See https://ctan.org/pkg/eijkhout
-          return ["GPL", "LPPL"]
-        when "preprint"
-          # See https://ctan.org/pkg/preprint
-          return "LPPL"
-        when "ltxmisc"
-          # See https://ctan.org/tex-archive/macros/latex/contrib/misc
-          return [
-            # bibcheck.sty
-            "GPLv2+",
-            # beletter.cls
-            "Public Domain",
-            # vrtbexin.sty is Non-Commercial only.
-            "see \"vrbexin.sty\"",
-            # iagproc.cls, nextpage.sty, texilikechaps.sty, topcapt.sty
-            "LPPL",
-          ]
-        when "fragments"
-          # See https://ctan.org/pkg/fragments
-          return ["Public Domain", "LPPL"]
-        when "frankenstein"
-          # See https://ctan.org/pkg/frankenstein
-          return ["LPPL", "GPL"]
-        when "gothic"
-          # See https://ctan.org/pkg/gothic
-          return [
-            "Public Domain",
-            "LPPL",
-            "see \"COPYING\"", # blacklettert1
-          ]
-        when "npp-for-context"
-          # See https://github.com/luigiScarso/context-npp
-          return "GPLv3"
-        when "beebe"
-          log.warn { "License of beebe (catalogue biblio) is not known" }
-          return "LPPL"
-        when "arabi-add"
-          # See https://ctan.org/tex-archive/language/arabic/arabi-add
-          return "LPPL"
+          when "almfixed"
+            # See https://ctan.org/pkg/almfixed
+            # File not included
+            return "see \"GUST-FONT-LICENSE.txt\""
+          when "arphic-ttf", "arphic"
+            # See https://ctan.org/pkg/arphic
+            # See https://ctan.org/pkg/arphic-ttf
+            # arphic does not include the file.
+            # arphic-ttf wrongly detected.
+            return "see \"ARPHICPL.txt\""
+          when "awesomebox"
+            # See https://ctan.org/pkg/awesomebox
+            # WTFPL (but Momonga does not accept this)
+            return "\"WTFPL\""
+          when "bbm"
+            # See https://ctan.org/pkg/bbm
+            log.warn { "License of bbm unknown" }
+            return "see \"README\""
+          when "bbold-type1"
+            # See https://ctan.org/pkg/bbold-type1
+            return "see \"README\""
+          when "beamertheme-metropolis"
+            # See https://ctan.org/tex-archive/macros/latex/contrib/beamer-contrib/themes/metropolis
+            # CC-BY-SA 4.0 International
+            return "CC-BY-SA"
+          when "berenisadf"
+            # See https://ctan.org/tex-archive/fonts/berenisadf
+            return ["GPLv2", "see \"COPYING\", LPPL"]
+            # when "blacklettert1"
+            #  # See https://ctan.org/tex-archive/fonts/gothic/blacklettert1
+            #  # It seems slightly different to LPPL 1.2.
+            #  return "LPPL"
+          when "borceux", "breakcites"
+            # See https://ctan.org/pkg/borceux
+            # See https://ctan.org/pkg/breakcites
+            return "see \"README\""
+          when "calligra", "calligra-type1"
+            # See https://ctan.org/tex-archive/fonts/calligra
+            # See https://ctan.org/tex-archive/fonts/calligra-type1
+            return "see \"README\""
+          when "charter"
+            # See https://ctan.org/pkg/charter
+            return "see \"readme.charter\""
+          when "cherokee"
+            # See https://ctan.org/tex-archive/fonts/cherokee
+            return "see \"cherokee.mf\""
+          when "chicago"
+            # See https://ctan.org/tex-archive/biblio/bibtex/contrib/chicago
+            return "see \"chicago.sty\""
+          when "cite"
+            # See https://ctan.org/tex-archive/macros/latex/contrib/cite
+            return "see \"README\""
+          when "cjk-ko"
+            # See https://ctan.org/pkg/cjk-ko
+            return ["GPL", "LPPL", "Public Domain"]
+          when "clock"
+            # Detected COPYING is GPLv2
+            # (Maybe Incomlete to apply GPL?)
+            return "GPLv2"
+          when "codepage"
+            # See https://ctan.org/pkg/codepage
+            return "see \"README\""
+          when "colorprofile"
+            # See https://ctan.org/pkg/colorprofiles
+            return "zlib"
+          when "context"
+            # See https://ctan.org/pkg/context
+            # They say see "readme", but which file is that?
+            log.warn { "License documentation of context has not found yet" }
+            return "see \"README\""
+          when "context-mathsets"
+            # See https://ctan.org/pkg/context-mathsets
+            # See t-mathsets.tex
+            return "Modified BSD"
+          when "context-rst"
+            # See https://ctan.org/pkg/context-rst
+            # from mtx-t-rst.lua.
+            return "Modified BSD"
+          when "courseoutline"
+            # See https://ctan.org/tex-archive/macros/latex/contrib/courseoutline
+            # NOTE: courceouline.cls uses CR and LF (not CRLF) for
+            #       line-terminator.
+            return "see \"courseoutline.cls\""
+          when "coursepaper"
+            # See https://ctan.org/tex-archive/macros/latex/contrib/coursepaper
+            # NOTE: courcepaper.cls uses CR for line-terminator.
+            return "see \"coursepaper.cls\""
+          when "crossword"
+            # See https://ctan.org/pkg/crossword
+            return "see \"cwpuzzle.dtx\""
+          when "csplain"
+            # See https://ctan.org/pkg/csplain
+            return "see \"csplain.ini\""
+          when "cstex"
+            # See https://ctan.org/pkg/cstex
+            # They say this document does not mean GPLv2.
+            return "see \"lic-gpl.eng\""
+          when "cv4tw"
+            # See https://ctan.org/pkg/cv4tw
+            return "see \"LICENSE\""
+          when "dancers"
+            # See https://ctan.org/pkg/dancers
+            return "see \"dancers.mf\""
+          when "de-macro"
+            # See https://ctan.org/pkg/de-macro
+            return "see \"READNE\""
+          when "detex"
+            # See https://ctan.org/pkg/detex
+            return "see \"README\""
+          when "din1505"
+            # See https://ctan.org/pkg/din1505
+            return "see \"abbrvdin.bst\""
+          when "doc-pictex"
+            # See https://ctan.org/pkg/doc-pictex
+            return "see \"Doc-PiCTeX.txt\""
+          when "docbytex"
+            # See https://ctan.org/pkg/docbytex
+            return "see \"README\""
+          when "dotseqn"
+            # See https://ctan.org/pkg/dotseqn
+            return "see \"dotseqn.dtx\""
+          when "doublestroke"
+            # See https://ctan.org/pkg/doublestroke
+            return "see \"README\""
+          when "dvidvi"
+            # See https://ctan.org/pkg/dvidvi
+            return "see \"README\""
+          when "dvips"
+            # See https://ctan.org/pkg/dvips
+            # The file does not included 'texmf' files
+            return ["Public Domain", "GPL", "see \"README\""]
+          when "ec"
+            # See https://ctan.org/pkg/ec
+            return "see \"copyrite.txt\""
+          when "electrum"
+            # See https://ctan.org/pkg/electrumadf
+            return ["LPPL", "GPL"]
+          when "elvish"
+            # See https://ctan.org/pkg/elvish
+            return "see \"README\""
+          when "epstopdf"
+            # See https://ctan.org/pkg/epstopdf
+            return "see \"epstopdf.pl\""
+          when "eqname"
+            # See https://ctan.org/pkg/eqname
+            return "see \"eqname.sty\""
+          when "fancynum"
+            # See https://ctan.org/pkg/fancynum
+            return "LPPL"
+          when "fbithesis"
+            # See https://ctan.org/pkg/fbithesis
+            return "see \"README\""
+          when "figflow"
+            # See https://ctan.org/pkg/figflow
+            return "see \"figflow.tex\""
+          when "finbib"
+            # See https://ctan.org/pkg/finplain
+            return "see \"finplain.bst\""
+          when "fltpoint"
+            # See https://ctan.org/pkg/fltpoint
+            return "LPPL"
+          when "fonetika"
+            # See https://ctan.org/pkg/fonetika
+            # GPL and GUST FONT LICENSE.
+            return "see \"README\""
+          when "font-change"
+            # See https://ctan.org/pkg/font-change
+            # CC-BY-SA 3.0 Unported
+            return "CC-BY-SA"
+          when "font-change-xetex"
+            # See https://ctan.org/pkg/font-change-xetex
+            # CC-BY-SA 4.0 International
+            return "CC-BY-SA"
+          when "framed"
+            # See https://ctan.org/pkg/framed
+            return "see \"framed.sty\""
+          when "fundus-calligra"
+            # See https://ctan.org/pkg/fundus-calligra
+            return "LPPL"
+          when "fwlw"
+            # See https://ctan.org/pkg/fwlw
+            return "see \"fwlw.sty\""
+          when "gene-logic"
+            # See https://ctan.org/pkg/gene-logic
+            return "see \"gn-logic14.sty\""
+          when "gentium-tug"
+            # See https://ctan.org/tex-archive/fonts/gentium-tug
+            # (They say Expat License)
+            return ["OFL", "MIT"]
+          when "gentle"
+            # See https://ctan.org/pkg/gentle
+            return "see \"gentle.tex\""
+          when "germbib"
+            # See https://ctan.org/pkg/germbib
+            return "see \"gerabbrv.bst\""
+          when "gfsartemisia"
+            # See https://ctan.org/pkg/gfsartemisia
+            return ["OFL", "LPPL"]
+          when "gfsbaskerville"
+            # See https://ctan.org/pkg/gfsbaskerville
+            return ["OFL", "LPPL"]
+          when "gfsdidot"
+            # See https://ctan.org/pkg/gfsdidot
+            return ["OFL", "LPPL"]
+          when "gfsneohellenic"
+            # See https://ctan.org/pkg/gfsneohellenic
+            return ["OFL", "LPPL"]
+          when "gfsporson"
+            # See https://ctan.org/pkg/gfsporson
+            return ["OFL", "LPPL"]
+          when "harvmac"
+            # See https://ctan.org/pkg/harvmac
+            # CC-BY 3.0 Unported
+            return "Creative Commons"
+          when "hc"
+            # See https://ctan.org/pkg/hc
+            return "GPLv2"
+          when "hyph-utf8"
+            # See https://ctan.org/pkg/hyph-utf8
+            # Mainly CC0 but it is not all.
+            return "CC0"
+          when "hyphen-basque"
+            # See https://ctan.org/pkg/bahyph
+            return "see \"bahyph.tex\""
+          when "hyphen-greek"
+            # See https://ctan.org/pkg/elhyphen
+            return "see \"copyrite.txt\""
+          when "hyphen-turkish"
+            # See https://ctan.org/pkg/tkhyph
+            return "see \"tkhyph.tex\""
+          when "hyphenex"
+            # See https://ctan.org/pkg/hyphenex
+            return "see \"README\""
+          when "ifsym"
+            # See https://ctan.org/pkg/ifsym
+            return "LPPL"
+          when "index"
+            # See https://ctan.org/pkg/index
+            return ["LPPL", "see \"xplain.bst\""]
+          when "jadetex"
+            # See https://ctan.org/pkg/jadetex
+            return "see \"jadetex.dtx\""
+          when "jamtimes"
+            # See https://ctan.org/pkg/jamtimes
+            return "see \"jamtimes.dtx\""
+          when "karnaugh-map" # not "karnaughmap"
+            # See https://ctan.org/pkg/karnaugh-map
+            return "see \"README.md\""
+          when "kastrup"
+            # See https://ctan.org/pkg/binhex
+            return "see \"binhex.dtx\""
+          when "kixfont"
+            # See https://ctan.org/pkg/kixfont
+            return "see \"kix.mf\""
+          when "l2tabu"
+            # See https://ctan.org/pkg/l2tabu
+            return "see \"l2tabu.tex\""
+          when "l2tabu-italian"
+            # See https://ctan.org/pkg/l2tabu-italian
+            return "see \"l2tabuit.tex\""
+          when "latexcourse-rug"
+            # See https://ctan.org/pkg/latexcourse-rug
+            return "see \"README\""
+          when "lhcyr"
+            # See https://ctan.org/pkg/lhcyr
+            return "see \"README\""
+          when "localloc"
+            # See https://ctan.org/pkg/localloc
+            return "see \"localloc.dtx\""
+          when "lshort-german"
+            # See https://ctan.org/pkg/lshort-german
+            # The full-text license is not included.
+            return "see \"README.l2kurz\""
+          when "lshort-spanish"
+            # See https://ctan.org/pkg/lshort-spanish
+            log.warn { "License of lshort-spanish unknown" }
+            return "see \"LEAME.utf8\""
+          when "lshort-ukr"
+            # See https://ctan.org/pkg/lshort-ukr
+            # This file is included in the tarball
+            log.warn { "License of lshort-ukr unknown" }
+            return "see \"README\""
+          when "luaxml"
+            # See https://ctan.org/pkg/luaxml
+            # The full-text file not included
+            #
+            # The License of Lua changed at Lua 5.0 release. So "Lua
+            # license" is ambiguous, and we assumed the luaxml's author
+            # followed the change.
+            #
+            # return "\"Lua\""
+            return "MIT"
+          when "magaz"
+            # See https://ctan.org/pkg/magaz
+            return "see \"magaz.sty\""
+          when "makeindex"
+            # See https://ctan.org/pkg/makeindexk
+            # The file is not included in the package
+            return "see \"COPYING\""
+          when "math-into-latex-4"
+            # See https://ctan.org/pkg/math-into-latex-4
+            return "see \"README\""
+          when "mdputu"
+            # See https://ctan.org/pkg/mdputu
+            return "see \"mdputu.dtx\""
+          when "menu"
+            # See https://ctan.org/pkg/menu
+            return "LPPL"
+          when "metapost-examples"
+            # See https://ctan.org/pkg/metapost-examples
+            # Seems not to satisfy the application condition of GPL.
+            return "GPL"
+          when "midnight"
+            # See https://ctan.org/pkg/midnight
+            return "see \"README\""
+          when "mkgrkindex"
+            # See https://ctan.org/pkg/greek-makeindex
+            return "LPPL"
+          when "mpman-ru"
+            # See https://ctan.org/pkg/mpman-ru
+            log.warn { "License of mpman-ru unknown" }
+            return "see \"README\""
+          when "mslapa"
+            # See https://ctan.org/pkg/mslapa
+            return "see \"README\""
+          when "nar"
+            # See https://ctan.org/pkg/nar
+            return "see \"nar.bst\""
+          when "nestquot"
+            # See https://ctan.org/pkg/nestquot
+            return "see \"nestquot.sty\""
+          when "newsletr"
+            # See https://ctan.org/pkg/newsletr
+            return "see \"README\""
+          when "nimbus15"
+            # See https://ctan.org/pkg/nimbus15
+            return "AGPLv3"
+          when "ocr-b", "ocr-b-outline"
+            # See https://ctan.org/pkg/ocr-b
+            # See https://ctan.org/pkg/ocr-b-outline
+            return "see \"README\""
+          when "oubraces"
+            # See https://ctan.org/pkg/oubraces
+            return "see \"oubraces.sty\""
+          when "passivetex"
+            # See https://ctan.org/pkg/passivetex
+            return "see \"fotex.sty\""
+          when "path"
+            # See https://ctan.org/pkg/path
+            return "see \"path.sty\""
+          when "pictexsum"
+            # See https://ctan.org/pkg/pictexsum
+            return "see \"README\""
+          when "pkuthss"
+            # See https://ctan.org/pkg/pkuthss
+            return "see \"README\""
+          when "plweb"
+            # See https://ctan.org/pkg/pl
+            return "see \"pl.dtx\""
+          when "pnas2009"
+            # See https://ctan.org/pkg/pnas2009
+            return "see \"pnas2009.bst\""
+          when "productbox"
+            # See https://ctan.org/pkg/productbox
+            return "see \"README\""
+          when "ps2pk"
+            # See https://ctan.org/pkg/ps2pk
+            log.warn { "License of ps2pk unknown" }
+            return "see \"README\""
+          when "psfrag"
+            # See https://ctan.org/pkg/psfrag
+            return "see \"psfrag.dtx\""
+          when "ptex"
+            # See https://ctan.org/pkg/ptex
+            # This file is not included.
+            return "see \"COPYRIGHT\""
+          when "punknova"
+            # See https://ctan.org/pkg/punknova
+            return "see \"README\""
+          when "r_und_s"
+            # See https://ctan.org/pkg/r_und_s
+            return "see \"README\""
+          when "rsfs"
+            # See https://ctan.org/pkg/rsfs
+            return "see \"README\""
+          when "seetexk"
+            # See https://ctan.org/pkg/dvibook
+            log.warn { "License of dvibook unknown" }
+            return "see \"README\""
+          when "slideshow"
+            # See https://ctan.org/pkg/slideshow
+            return "see \"slideshow.mp\""
+          when "sort-by-letters"
+            # See https://ctan.org/pkg/sort-by-letters
+            return "see \"README\""
+          when "sphack"
+            # See https://ctan.org/pkg/sphack
+            return "see \"sphack.sty\""
+          when "tabls"
+            # See https://ctan.org/pkg/tabls
+            return "see \"tabls.sty\""
+          when "tds"
+            # See https://ctan.org/pkg/tds
+            return "see \"README\""
+          when "tetex"
+            log.warn { "License of tetex is incomplete" }
+            return ["LGPLv2+"]
+          when "tex-refs"
+            # See https://ctan.org/pkg/tex-references
+            # This does not satisfy the application condition of GFDL.
+            return "GFDL"
+          when "threeparttable"
+            # See https://ctan.org/pkg/threeparttable
+            return "see \"threeparttable.sty\""
+          when "tie"
+            # See https://ctan.org/pkg/tie
+            log.warn { "License of tie unkown" }
+            return "see \"README\""
+          when "tikz-dimline"
+            # See https://ctan.org/pkg/tikz-dimline
+            # The full-text file is not included.
+            return "\"WTFPL\""
+          when "trigonometry"
+            # See https://ctan.org/pkg/trigonometry
+            return "see \"README.txt\""
+          when "tucv"
+            # See https://ctan.org/pkg/tucv
+            # The full-text file is not included.
+            return "CC-BY-SA"
+          when "tugboat-plain"
+            # See https://ctan.org/pkg/tugboat-plain
+            return "see \"tugboat.sty\""
+          when "ulem"
+            # See https://ctan.org/pkg/ulem
+            return "see \"README\""
+          when "undergradmath"
+            # See https://ctan.org/pkg/undergradmath
+            # The full-text license file is not included.
+            return "CC-BY-SA"
+          when "uppunctlm"
+            # See https://ctan.org/pkg/uppunctlm
+            # File not included
+            return "see \"GUST-FONT-LICENSE.txt\""
+          when "uspace"
+            # See https://ctan.org/pkg/uspace
+            return "MIT"
+          when "variablelm"
+            # See https://ctan.org/pkg/variablelm
+            # File not included
+            return "see \"GUST-FONT-LICENSE.txt\""
+          when "venturisadf"
+            # See https://ctan.org/pkg/venturisadf
+            return "LPPL"
+          when "version"
+            # See https://ctan.org/pkg/version
+            return "see \"version.sty\""
+          when "vntex"
+            # See https://ctan.org/pkg/vntex
+            return [
+              "GPL",
+              "LGPL",
+              "LPPL",
+              "see \"LICENSE-utopia.txt\"",
+            ]
+          when "wadalab"
+            # See https://ctan.org/pkg/wadalab
+            return "see \"README\""
+          when "webguide"
+            # See https://ctan.org/pkg/webguide
+            return "see \"README\""
+          when "xcharter"
+            # See https://ctan.org/pkg/xcharter
+            return [
+              "see \"README\"",
+              "LPPL",
+            ]
+          when "xdvi"
+            # See https://ctan.org/pkg/xdvi
+            log.warn { "License of xdvi unknown" }
+            return "see \"README\""
+          when "yfonts-t1"
+            # See https://ctan.org/pkg/yfonts-t1
+            log.warn { "License of yfonts-t1 unknown" }
+            return "see \"README\""
+          when "2up"
+            # According to 2up.tex
+            return "LPPL"
+          when "abstyles"
+            log.warn { "License of abstyles unknown" }
+            return "LPPL"
+          when "xetex"
+            # According to `xetex --help`
+            return "see \"COPYING\""
+          when "zed-csp"
+            return "see \"zed-csp.sty\""
+          when "uwmslide"
+            # See https://ctan.org/pkg/uwmslide
+            return "Artistic"
+          when "was"
+            # See https://ctan.org/tex-archive/macros/latex/contrib/was
+            return "LPPL"
+          when "eijkhout"
+            # See https://ctan.org/pkg/eijkhout
+            return ["GPL", "LPPL"]
+          when "preprint"
+            # See https://ctan.org/pkg/preprint
+            return "LPPL"
+          when "ltxmisc"
+            # See https://ctan.org/tex-archive/macros/latex/contrib/misc
+            return [
+              # bibcheck.sty
+              "GPLv2+",
+              # beletter.cls
+              "Public Domain",
+              # vrtbexin.sty is Non-Commercial only.
+              "see \"vrbexin.sty\"",
+              # iagproc.cls, nextpage.sty, texilikechaps.sty, topcapt.sty
+              "LPPL",
+            ]
+          when "fragments"
+            # See https://ctan.org/pkg/fragments
+            return ["Public Domain", "LPPL"]
+          when "frankenstein"
+            # See https://ctan.org/pkg/frankenstein
+            return ["LPPL", "GPL"]
+          when "gothic"
+            # See https://ctan.org/pkg/gothic
+            return [
+              "Public Domain",
+              "LPPL",
+              "see \"COPYING\"", # blacklettert1
+            ]
+          when "npp-for-context"
+            # See https://github.com/luigiScarso/context-npp
+            return "GPLv3"
+          when "beebe"
+            log.warn { "License of beebe (catalogue biblio) is not known" }
+            return "LPPL"
+          when "arabi-add"
+            # See https://ctan.org/tex-archive/language/arabic/arabi-add
+            return "LPPL"
+          end
         end
       end
 
       license = StringCase::Single.new(tlpdb_license_name)
       ret = [] of String
       while !license.eof?
-        StringCase.strcase \
+        StringCase.strcase do
           case license
-        when "gpl"
-          save = license.pos
-          ch = license.next_char
-          case ch
-          when '1'
-            # GPLv1?
-            ret << "GPL"
-          when '2'
+          when "gpl"
             save = license.pos
             ch = license.next_char
-            if ch == '+'
-              ret << "GPLv2+"
-            else
-              license.pos = save
-              ret << "GPLv2"
-            end
-          when '3'
-            save = license.pos
-            ch = license.next_char
-            if ch == '+'
-              ret << "GPLv3+"
-            else
-              license.pos = save
-              ret << "GPLv3"
-            end
-          else
-            license.pos = save
-            ret << "GPL"
-          end
-        when "lgpl"
-          save = license.pos
-          StringCase.strcase \
-            case license
-          when "2.1"
-            ret << "LGPLv2"
-          when "3"
-            ret << "LGPLv3"
-          else
-            license.pos = save
-            ret << "LGPL"
-          end
-        when "fdl"
-          ret << "GFDL"
-        when "lppl"
-          save = license.pos
-          ch = license.next_char
-          case ch
-          when '1'
-            save = license.pos
-            StringCase.strcase \
-              case license
-            when ".2"
-              ret << "LPPL"
-            when ".3"
+            case ch
+            when '1'
+              # GPLv1?
+              ret << "GPL"
+            when '2'
               save = license.pos
               ch = license.next_char
-              case ch
-              when 'a', 'b', 'c'
-                ret << "LPPL"
+              if ch == '+'
+                ret << "GPLv2+"
               else
                 license.pos = save
-                ret << "LPPL"
+                ret << "GPLv2"
+              end
+            when '3'
+              save = license.pos
+              ch = license.next_char
+              if ch == '+'
+                ret << "GPLv3+"
+              else
+                license.pos = save
+                ret << "GPLv3"
+              end
+            else
+              license.pos = save
+              ret << "GPL"
+            end
+          when "lgpl"
+            save = license.pos
+            StringCase.strcase do
+              case license
+              when "2.1"
+                ret << "LGPLv2"
+              when "3"
+                ret << "LGPLv3"
+              else
+                license.pos = save
+                ret << "LGPL"
+              end
+            end
+          when "fdl"
+            ret << "GFDL"
+          when "lppl"
+            save = license.pos
+            ch = license.next_char
+            case ch
+            when '1'
+              save = license.pos
+              StringCase.strcase do
+                case license
+                when ".2"
+                  ret << "LPPL"
+                when ".3"
+                  save = license.pos
+                  ch = license.next_char
+                  case ch
+                  when 'a', 'b', 'c'
+                    ret << "LPPL"
+                  else
+                    license.pos = save
+                    ret << "LPPL"
+                  end
+                else
+                  license.pos = save
+                  ret << "LPPL"
+                end
               end
             else
               license.pos = save
               ret << "LPPL"
             end
-          else
-            license.pos = save
-            ret << "LPPL"
-          end
-        when "cc0"
-          ret << "CC0"
-        when "pd"
-          ret << "Public Domain"
-        when "ofl"
-          ret << "OFL"
-        when "mit"
-          ret << "MIT"
-        when "apache2"
-          ret << "ASL 2.0"
-        when "bsd"
-          save = license.pos
-          ch = license.next_char
-          case ch
-          when '2', '4'
-            ret << "BSD" # Momonga does not approve yet.
-          when '3'
-            ret << "Modified BSD"
-          else
-            license.pos = save
-            ret << "BSD" # Momonga does not approve yet.
-          end
-        when "cc-by-"
-          StringCase.strcase \
-            case license
-          when "1", "2", "3", "4"
-            ret << "Creative Commons"
-          when "sa-1", "sa-2", "sa-3", "sa-4"
-            ret << "CC-BY-SA"
-          when "nd-1", "nd-2", "nd-3", "nd-4"
-            # CC-BY-ND
-            log.error { "#{tlpkg.name}: CC-BY-ND is not \"free culture license\"" }
-            stat = true
-            ret << see_license(tlpkg)
-          when "nc-"
-            StringCase.strcase \
-              case license
-            when "1", "2", "3", "4"
-              # CC-BY-NC
-              log.error { "#{tlpkg.name}: CC-BY-NC is not \"free culture license\"" }
-              stat = 1
-              ret << see_license(tlpkg)
-            when "sa-1", "sa-2", "sa-3", "sa-4"
-              # CC-BY-NC-SA
-              log.error { "#{tlpkg.name}: CC-BY-NC-SA is not \"free culture license\"" }
-              stat = 1
-              ret << see_license(tlpkg)
-            when "nd-1", "nd-2", "nd-3", "nd-4"
-              # CC-BY-NC-ND
-              log.error { "#{tlpkg.name}: CC-BY-NC-ND is not \"free culture license\"" }
-              stat = 1
-              ret << see_license(tlpkg)
+          when "cc0"
+            ret << "CC0"
+          when "pd"
+            ret << "Public Domain"
+          when "ofl"
+            ret << "OFL"
+          when "mit"
+            ret << "MIT"
+          when "apache2"
+            ret << "ASL 2.0"
+          when "bsd"
+            save = license.pos
+            ch = license.next_char
+            case ch
+            when '2', '4'
+              ret << "BSD" # Momonga does not approve yet.
+            when '3'
+              ret << "Modified BSD"
             else
-              log.error { "Unknown lincese: #{tlpdb_license_name}" }
-              return nil
+              license.pos = save
+              ret << "BSD" # Momonga does not approve yet.
             end
+          when "cc-by-"
+            StringCase.strcase do
+              case license
+              when "1", "2", "3", "4"
+                ret << "Creative Commons"
+              when "sa-1", "sa-2", "sa-3", "sa-4"
+                ret << "CC-BY-SA"
+              when "nd-1", "nd-2", "nd-3", "nd-4"
+                # CC-BY-ND
+                log.error { "#{tlpkg.name}: CC-BY-ND is not \"free culture license\"" }
+                stat = true
+                ret << see_license(tlpkg)
+              when "nc-"
+                StringCase.strcase do
+                  case license
+                  when "1", "2", "3", "4"
+                    # CC-BY-NC
+                    log.error { "#{tlpkg.name}: CC-BY-NC is not \"free culture license\"" }
+                    stat = 1
+                    ret << see_license(tlpkg)
+                  when "sa-1", "sa-2", "sa-3", "sa-4"
+                    # CC-BY-NC-SA
+                    log.error { "#{tlpkg.name}: CC-BY-NC-SA is not \"free culture license\"" }
+                    stat = 1
+                    ret << see_license(tlpkg)
+                  when "nd-1", "nd-2", "nd-3", "nd-4"
+                    # CC-BY-NC-ND
+                    log.error { "#{tlpkg.name}: CC-BY-NC-ND is not \"free culture license\"" }
+                    stat = 1
+                    ret << see_license(tlpkg)
+                  else
+                    log.error { "Unknown lincese: #{tlpdb_license_name}" }
+                    return nil
+                  end
+                end
+              else
+                log.error { "Unknown lincese: #{tlpdb_license_name}" }
+                return nil
+              end
+            end
+          when "artistic"
+            save = license.pos
+            ch = license.next_char
+            if ch == '2'
+              ret << "Artistic"
+            else
+              license.pos = save
+              ret << "Artistic"
+            end
+          when "knuth" # See https://ctan.org/license/knuth
+            ret << see_license(tlpkg, "Knuth License")
+          when "gfl"
+            ret << see_license(tlpkg, "GUST Font License")
+          when "gfsl" # GUST Font (Source) License
+            ret << see_license(tlpkg, "GUST Font Source License")
+          when "opl"
+            ret << see_license(tlpkg, "Open Publication License")
+          when "other-free"
+            ret << see_license(tlpkg, "other-free license")
+          when "collection"
+            log.error { "Please inspect collection license for #{tlpkg.name}" }
+            return nil
+          when "noinfo"
+            log.error { "Please inspect noinfo license for #{tlpkg.name}" }
+            return nil
           else
-            log.error { "Unknown lincese: #{tlpdb_license_name}" }
+            log.error { "Unknown lincese for #{tlpkg.name}: #{tlpdb_license_name}" }
             return nil
           end
-        when "artistic"
-          save = license.pos
-          ch = license.next_char
-          if ch == '2'
-            ret << "Artistic"
-          else
-            license.pos = save
-            ret << "Artistic"
-          end
-        when "knuth" # See https://ctan.org/license/knuth
-          ret << see_license(tlpkg, "Knuth License")
-        when "gfl"
-          ret << see_license(tlpkg, "GUST Font License")
-        when "gfsl" # GUST Font (Source) License
-          ret << see_license(tlpkg, "GUST Font Source License")
-        when "opl"
-          ret << see_license(tlpkg, "Open Publication License")
-        when "other-free"
-          ret << see_license(tlpkg, "other-free license")
-        when "collection"
-          log.error { "Please inspect collection license for #{tlpkg.name}" }
-          return nil
-        when "noinfo"
-          log.error { "Please inspect noinfo license for #{tlpkg.name}" }
-          return nil
-        else
-          log.error { "Unknown lincese for #{tlpkg.name}: #{tlpdb_license_name}" }
-          return nil
         end
       end
       ret
@@ -915,7 +923,7 @@ module TLpsrc2spec
       if kpselibname
         kpselib = Package.new(kpselibname,
           summary: "Library files of #{name}",
-          group: "System Envrionment/Libraries",
+          group: "System Environment/Libraries",
           archdep: true,
           description: <<-EOD)
           This package contains library files of #{name}.
@@ -954,6 +962,7 @@ module TLpsrc2spec
         end
         add_package(kpselib)
       end
+      [kpsedev, kpselib].compact
     end
 
     def create_package_from_tlpdb
@@ -981,37 +990,87 @@ module TLpsrc2spec
         add_package(Package.new(pkgname, tlpdb_pkgs: [tlpkg]))
       end
 
+      # Create packages contains shared libraries, built by texlive.
+      make_solib_package("kpathsea")
+      ptexenc = make_solib_package("ptexenc", tlpkg: nil)
+      ptexenc.each do |pkg|
+        pkg.license = ["Modified BSD"]
+      end
+
+      # Package texlive-filesystem is the bare texlive-filesystem
+      # tree.
+      tl_fs_pkg = Package.new("texlive-filesystem",
+        summary: "TeX Live filesystem",
+        license: ["GPL"],
+        group: "System Environment/Base",
+        description: <<-EOD)
+      Filesystem tree of TeX Live distribution.
+      EOD
+      add_package(tl_fs_pkg)
+
+      # Package cleanup-packages-texlive is used for cleaning up old
+      # texlive packages, which can be used for stable-release update.
+      tl_cleanup = Package.new("cleanup-packages-texlive",
+        summary: "Cleanup texlive-related package",
+        license: ["GPL"],
+        group: "System Environment/Base",
+        description: <<-EOD)
+      cleanup packages old TeX Live distribution.
+      EOD
+      add_package(tl_cleanup)
+
       stat = false
       each_package do |pkg|
         tlpkgs = pkg.tlpdb_pkgs
+
+        # Set flag whether any architecture depend files is contained
+        # or not.
         pkg.archdep = tlpkgs.any? do |tlpkg|
           binfiles = tlpkg.binfiles
           binfiles && !binfiles.empty?
         end
         archdepname = nil
+
+        # Build Summary field.
+        #
+        # Summary field will be built from the first tlpkg data.
+        #
+        # The summary field text will be build even if some summary is
+        # already set, because we have some operations which has side
+        # effect (sets `archdepname`).
         if (tlpkg = tlpkgs.first?)
           if pkg.archdep?
             n = tlpkg.name.not_nil!
             ni = n.byte_index('.'.ord)
             archdepname = n[0...ni]
-            pkg.summary = String.build do |io|
+            summary = String.build do |io|
               io << "Binary files for TeX Live Package '"
               io << archdepname
               io << "'"
             end
+            archdeppkg = @app.tlpdb[archdepname]?
           else
             if (sdesc = tlpkg.shortdesc)
-              pkg.summary = sdesc.gsub('%', "%%")
+              summary = sdesc.gsub('%', "%%")
             else
               name = tlpkg.name.not_nil!
-              log.warn { "Package #{name} has not shortdesc" }
-              pkg.summary = String.build do |io|
+              log.warn { "Package #{name} has no shortdesc" }
+              summary = String.build do |io|
                 io << "TeX Live Package: " << name
               end
             end
           end
+          if pkg.summary.nil?
+            pkg.summary = summary
+          end
         end
-        pkg.description = String.build do |io|
+
+        # Build description field
+        #
+        # The description field text will be built even if some
+        # description is already set, because we may write some
+        # operations which has side effect.
+        description = String.build do |io|
           if pkg.archdep?
             io << "Binary files for TeX Live Package '"
             io << archdepname.not_nil!
@@ -1040,6 +1099,19 @@ module TLpsrc2spec
             end
           end
         end
+        if pkg.description.nil?
+          pkg.description = description
+        end
+
+        # Arch dependent packages (includes executable/library binary
+        # files) should include base tlpkg to get license info.
+        if pkg.archdep? && tlpkgs.empty?
+          if archdeppkg
+            tlpkgs << archdeppkg
+          end
+        end
+
+        # Collect license information from tlpkg data.
         tlpkgs.each do |tlpkg|
           if (ctan_license = tlpkg.catalogue_license)
             if (lics = parse_license(tlpkg, ctan_license))
@@ -1055,6 +1127,13 @@ module TLpsrc2spec
             end
           end
         end
+
+        # Use LPPL as metapackage provided by upstream.
+        if !stat && !tlpkgs.empty? && pkg.license.empty?
+          pkg.license << "LPPL"
+        end
+
+        # Write out list of licenses.
         log.info do
           String.build do |io|
             io << "License of " << pkg.name << ": "
@@ -1087,9 +1166,6 @@ module TLpsrc2spec
         exit 1
       end
 
-      make_solib_package("kpathsea")
-      make_solib_package("ptexenc", tlpkg: nil)
-
       if (fontutils = packages?("texlive-collection-fontutils"))
         fontutils.requires << "psutils"
         fontutils.requires << "t1utils"
@@ -1098,27 +1174,43 @@ module TLpsrc2spec
       add_package(Package.new("texlive-japanese-recommended",
         summary: "TeX Live: recommended packages for Japanese users",
         description: <<-EOD))
-        This meta-package contains a collection of recommended packages for
-        Japanese texlive users.
+      This meta-package contains a collection of recommended packages for
+      Japanese texlive users.
       EOD
     end
 
     def make_config_file(file : String)
-      if file.starts_with?("texmf-dist/")
-        File.join(TEXMFCONFIGDIR, file.sub("texmf-dist/", ""))
-      elsif file.starts_with?("RELOC/")
-        File.join(TEXMFCONFIGDIR, file.sub("RELOC/", ""))
-      else
-        File.join(TEXMFCONFIGDIR, file)
-      end
+      base = if file.starts_with?("texmf-dist/")
+               file.sub("texmf-dist/", "")
+             elsif file.starts_with?("RELOC/")
+               file.sub("RELOC/", "")
+             else
+               file
+             end
+      {File.join(TEXMFCONFIGDIR, base), base}
     end
 
     def add_config_file(pkg : TLpsrc2spec::Package, path : String)
-      cnffile = make_config_file(path)
+      cnffile, apath = make_config_file(path)
       log.warn { "Creating in sysconfdir: #{cnffile}" }
       conf = FileConfig.new
       e = FileEntry.new(cnffile, config: conf)
       pkg.files << e
+      pkg.install_script = String.build do |str|
+        if pkg.install_script
+          str << pkg.install_script
+        end
+        base = File.basename(apath)
+        adir = File.dirname(apath)
+        root = "%{buildroot}"
+        destdir = File.join("%{_texmfconfigdir}/", adir)
+        locadir = File.join("%{_texmfdir}/", adir)
+        destnam = File.join(destdir, base)
+        locanam = File.join(locadir, base)
+        str << "%{__mkdir} -p " << root << destdir << "\n"
+        str << "%{__mv} " << root << locanam << " " << root << destnam << "\n"
+        str << "%{__ln_s} " << destnam << " " << root << locanam << "\n\n"
+      end
     end
 
     def expand_tlpdb_files(pkg : TLpsrc2spec::Package, tlpkg : TLPDB::Package,
@@ -1129,64 +1221,79 @@ module TLpsrc2spec
         doc = false
         skip = false
         pathparser = StringCase::Single.new(path)
-        StringCase.strcase \
+        StringCase.strcase do
           case pathparser
-        when "bin/"
-          arch = pathparser.gets('/').not_nil!
-          pos_save = pathparser.pos
-          base = pathparser.gets_to_end
-          pathparser.pos = pos_save
-          xpath = File.join(BINDIR, base)
-          StringCase.strcase \
-            case pathparser
-          when "man", "teckit_compile"
-            skip = true
-          end
-        when "texmf-dist/", "RELOC/"
-          pos_save = pathparser.pos
-          xpath = File.join(TEXMFDIR, pathparser.gets.not_nil!)
-          pathparser.pos = pos_save
-          StringCase.strcase \
-            case pathparser
-          when "dvipdfm/config",
-               "dvipdfmx/dvipdfmx.cfg",
-               "dvips/config/config.ps",
-               "scripts/match_parens",
-               "scripts/mf2pt1",
-               "scripts/urlbst",
-               "tex/amstex/base/amsppt.sti",
-               "tex/generic/tex-ini-files/pdftexconfig.tex",
-               "tex/generic/config/language.def",
-               "tex/generic/config/language.dat.lua",
-               "tex/generic/config/language.dat",
-               "tex/lambda/config/language.dat",
-               "tex/mex/base/mexconf.cfg",
-               "tex/plain/cyrplain/cyrtex.cfg",
-               "web2c/fmtutil.cnf",
-               "web2c/mktex.cnf",
-               "web2c/texmf.cnf",
-               "web2c/texmfcnf.lua",
-               "web2c/updmap.cfg",
-               "xdvi/XDvi"
-            add_config_file(pkg, path)
-          when "doc/man/man1/install-tl.1",
-               "doc/man/man1/install-tl.man1.pdf"
+          when "bin/"
+            arch = pathparser.gets('/').not_nil!
+            pos_save = pathparser.pos
+            base = pathparser.gets_to_end
+            pathparser.pos = pos_save
+            xpath = File.join(BINDIR, base)
+            StringCase.strcase do
+              case pathparser
+              when "man", "teckit_compile"
+                skip = true
+              end
+            end
+          when "texmf-dist/", "RELOC/"
+            pos_save = pathparser.pos
+            xpath = File.join(TEXMFDIR, pathparser.gets.not_nil!)
+            pathparser.pos = pos_save
+            StringCase.strcase do
+              case pathparser
+              when "dvipdfm/config",
+                   "dvipdfmx/dvipdfmx.cfg",
+                   "dvips/config/config.ps",
+                   "scripts/match_parens",
+                   "scripts/mf2pt1",
+                   "scripts/urlbst",
+                   "tex/amstex/base/amsppt.sti",
+                   "tex/generic/tex-ini-files/pdftexconfig.tex",
+                   "tex/generic/config/language.def",
+                   "tex/generic/config/language.dat.lua",
+                   "tex/generic/config/language.dat",
+                   "tex/lambda/config/language.dat",
+                   "tex/mex/base/mexconf.cfg",
+                   "tex/plain/cyrplain/cyrtex.cfg",
+                   "web2c/fmtutil.cnf",
+                   "web2c/mktex.cnf",
+                   "web2c/texmf.cnf",
+                   "web2c/texmfcnf.lua",
+                   "web2c/updmap.cfg",
+                   "xdvi/XDvi"
+                add_config_file(pkg, path)
+              when "doc/man/"
+                pos_save = pathparser.pos
+                StringCase.strcase do
+                  case pathparser
+                  when "man1/install-tl.1",
+                       "man1/install-tl.man1.pdf"
+                    log.debug { "Skipping TLPKG file: #{path}" }
+                    skip = true
+                  else
+                    if !path.ends_with?(".pdf")
+                      pathparser.pos = pos_save
+                      xpath = File.join(MANDIR, pathparser.gets.not_nil!) + "*"
+                      log.debug { "Man page #{path} -> #{xpath}" }
+                    end
+                  end
+                end
+              end
+            end
+          when "install-tl" # "tlpkg/",
             log.debug { "Skipping TLPKG file: #{path}" }
             skip = true
+          when "tlpkg/"
+            xpath = File.join(TEXMFDIR, xpath)
+          when "release-texlive.txt",
+               "README", "readme-txt.dir/", "readme-html.dir/",
+               "LICENSE", "license", "doc.html", "index.html"
+            log.debug { "Document: #{path}" }
+            xpath = File.join(TEXMFDIR, xpath)
+            doc = true
+          else
+            log.warn { "Unknown fullpath for: #{path}" }
           end
-        when "install-tl" # "tlpkg/",
-          log.debug { "Skipping TLPKG file: #{path}" }
-          skip = true
-        when "tlpkg/"
-          xpath = File.join(TEXMFDIR, xpath)
-        when "release-texlive.txt",
-             "README", "readme-txt.dir/", "readme-html.dir/",
-             "LICENSE", "license", "doc.html", "index.html"
-          log.debug { "Document: #{path}" }
-          xpath = File.join(TEXMFDIR, xpath)
-          doc = true
-        else
-          log.warn { "Unknown fullpath for: #{path}" }
         end
 
         if path.ends_with?(".exe") || path.ends_with?(".dll")
@@ -1208,14 +1315,29 @@ module TLpsrc2spec
       end
     end
 
+    def add_fmt_files(pkg, fmts : Array(TLPDB::Execute::AddFormat))
+      fmts.each do |fmt|
+        dir = File.join(TEXMFVARDIR, "web2c", fmt.engine)
+        pkg.files << FileEntry.new(File.join(dir, fmt.name + ".fmt"))
+        pkg.files << FileEntry.new(File.join(dir, fmt.name + ".log"))
+      end
+    end
+
     def create_file_entries
       @tree.clear
 
-      tl_fs_pkg = Package.new("texlive-filesystem")
+      tl_fs_pkg = packages("texlive-filesystem")
       TEXMF.each do |texmfdir|
         node = @tree.mkdir(texmfdir)
         tl_fs_pkg.files << FileEntry.new(texmfdir, dir: true)
         node.package = tl_fs_pkg
+
+        miss = FileConfig.new(missingok: true)
+        ls_r = FileEntry.new(File.join(texmfdir, "ls-R"), config: miss)
+        ls_u = FileEntry.new(File.join(texmfdir, "%{ls_R_needs_update}"),
+          config: miss)
+        tl_fs_pkg.files << ls_r
+        tl_fs_pkg.files << ls_u
       end
 
       log.info "Creating package file entries"
@@ -1231,11 +1353,72 @@ module TLpsrc2spec
               end
             {% end %}
           {% end %}
+
+          fmts = tlpkg.executes.compact_map do |ex|
+            if ex.is_a?(TLPDB::Execute::AddFormat)
+              ex.as(TLPDB::Execute::AddFormat)
+            else
+              nil
+            end
+          end
+          add_fmt_files(pkg, fmts)
+        end
+        pkg.files.uniq! do |entry|
+          entry.path
         end
         pkg.files.each do |entry|
-          e = @tree.insert(entry.path)
+          if entry.dir?
+            e = @tree.mkdir(entry.path)
+          else
+            e = @tree.insert(entry.path)
+          end
           e.package = pkg
         end
+      end
+
+      log.info "Collecting directories preferred to be contained by filesystem"
+      TEXMF.each do |mfdir|
+        ent = @tree[mfdir].as(DirectoryNode)
+        ent.entries.each do |name, sub|
+          if sub.is_a?(DirectoryNode)
+            gosub = false
+            if name == "tex" || name == "fonts"
+              gosub = true
+            end
+            if gosub
+              oldcwd = @tree.cwd
+              begin
+                sub.entries.each do |ns, subent|
+                  if !subent.is_a?(DirectoryNode)
+                    next
+                  end
+                  tl_fs_pkg.files << FileEntry.new(subent.path, dir: true)
+                  subent.package = tl_fs_pkg
+                  if name == "fonts"
+                    @tree.cwd = subent
+                    pubdir = @tree["public"]?
+                    if pubdir.is_a?(DirectoryNode)
+                      tl_fs_pkg.files << FileEntry.new(pubdir.path, dir: true)
+                      pubdir.package = tl_fs_pkg
+                    end
+                  end
+                end
+              ensure
+                @tree.cwd = oldcwd
+              end
+            end
+            tl_fs_pkg.files << FileEntry.new(sub.path, dir: true)
+            sub.package = tl_fs_pkg
+          end
+        end
+      end
+      # Manual directories
+      [
+        TEXLIVE_HOOKDIR,
+      ].each do |path|
+        tl_fs_pkg.files << FileEntry.new(path, dir: true)
+        node = @tree.mkdir(path)
+        node.package = tl_fs_pkg
       end
 
       log.info "Directory compacting"
@@ -1256,6 +1439,8 @@ module TLpsrc2spec
         end
       end
 
+      # "nil-package" is a mark that traversed but still no package
+      # has been set. (`nil` is a mark that not traversed yet.)
       nil_pkg = Package.new("nil-package")
       @tree.each_entry_breadth.to_a.reverse_each do |entry|
         if entry.is_a?(DirectoryNode)
@@ -1288,15 +1473,16 @@ module TLpsrc2spec
         #   end
         # end
 
-        if parent.package.nil?
+        parent_pkg = parent.package
+        entry_pkg = entry.package.not_nil!
+        if parent_pkg.nil?
           if entry.package
-            parent.package = entry.package
+            parent.package = entry_pkg
           else
             parent.package = nil_pkg
           end
-        elsif parent.package != entry.package
-          if parent.package != filesystem_pkg &&
-             parent.package != nil_pkg
+        elsif parent_pkg != entry_pkg
+          if parent_pkg != filesystem_pkg && parent_pkg != nil_pkg
             parent.package = tl_fs_pkg
           end
         end
@@ -1316,16 +1502,67 @@ module TLpsrc2spec
         end
       end
 
-      tl_fs_pkg.summary = "TeX Live filesystem"
-      tl_fs_pkg.description = "TeX Live filesystem"
-      add_package(tl_fs_pkg)
+      # add_dir_to_fs = -> (dir: DirectoryNode) do
+      #   if !dir.package
+      #     log.warn { "Adding #{dir.path} for dist-package" }
+      #     tl_fs_pkg.files << FileEntry.new(dir.path, dir: true)
+      #     dir.package = tl_fs_pkg
+      #   end
+      # end
+      #
+      # mfdirs = [TEXMFDIR, TEXMFDISTDIR]
+      # mfdirs.each do |mf|
+      #   tex = @tree[File.join(mf, "tex")]?
+      #   if tex && tex.is_a?(DirectoryNode)
+      #     mfdirs.each do |dmf|
+      #       if mf == dmf
+      #         next
+      #       end
+      #       dir = @tree.mkdir(File.join(dmf, "tex"))
+      #       add_dir_to_fs.call(dir)
+      #       tex.entries.each do |name, node|
+      #         if !node.is_a?(DirectoryNode)
+      #           next
+      #         end
+      #         dir = @tree.mkdir(File.join(dmf, "tex", name))
+      #         add_dir_to_fs.call(dir)
+      #       end
+      #     end
+      #   end
+      #
+      #   fonts = @tree[File.join(mf, "fonts")]?
+      #   if fonts && fonts.is_a?(DirectoryNode)
+      #     mfdirs.each do |dmf|
+      #       if mf == dmf
+      #         next
+      #       end
+      #       dir = @tree.mkdir(File.join(dmf, "fonts"))
+      #       add_dir_to_fs.call(dir)
+      #       fonts.entries.each do |name, node|
+      #         if !node.is_a?(DirectoryNode)
+      #           next
+      #         end
+      #         dir = @tree.mkdir(File.join(dmf, "fonts", name))
+      #         add_dir_to_fs.call(dir)
+      #       end
+      #     end
+      #   end
+      #
+      #   dir = @tree.mkdir(File.join(mf, "doc"))
+      #   add_dir_to_fs.call(dir)
+      # end
 
+      tl_fs_pkg.files.uniq! do |entry|
+        entry.path
+      end
+
+      stat = false
       @tree.each_entry_recursive do |entry|
         if !entry.package
           log.error do
             String.build do |io|
               io << "`" << entry.path << "'"
-              if entry.dir?
+              if entry.is_a?(DirectoryNode)
                 io << " (directory)"
               else
                 io << " (file)"
@@ -1333,7 +1570,11 @@ module TLpsrc2spec
               io << " is not contained by a package"
             end
           end
+          stat = true
         end
+      end
+      if stat
+        exit 1
       end
     end
 
@@ -1344,6 +1585,18 @@ module TLpsrc2spec
     end
 
     def adjust_dependency
+      tl_fs_pkg = packages("texlive-filesystem")
+
+      # Add filesystem package as dependency if it contains a file.
+      each_package do |pkg|
+        if pkg == tl_fs_pkg
+          next
+        end
+        if pkg.files.size > 0
+          pkg.requires << "#{tl_fs_pkg.name} == %{version}-%{release}"
+        end
+      end
+
       deptree = DependencyTree.new(app)
       each_package do |pkg|
         deptree.add(pkg)
@@ -1368,24 +1621,15 @@ module TLpsrc2spec
       end
     end
 
-    def make_obsolete(rpmpkg : RPM::Package)
-      v = rpmpkg[RPM::Tag::Version].as(String)
-      r = rpmpkg[RPM::Tag::Release].as(String)
-      e = rpmpkg[RPM::Tag::Epoch].as(UInt32?)
-      version = RPM::Version.new(v, r, e)
-      RPM::Obsolete.new(rpmpkg.name, version,
-        RPM::Sense::LESS | RPM::Sense::EQUAL, nil)
-    end
-
     def obsolete_old_packages
       log.info { "Creating obsoletion entries" }
-      metadirs = [TEXMFDISTDIR, TEXMFDIR]
+      metadirs = [OLDTEXMFDIR, OLDTEXMFDISTDIR]
       docdirs = metadirs.map { |x| File.join(x, "doc") }
       each_package do |pkg|
         name = pkg.name
         log.info { "Searching obsoletion info for #{name}" }
         pkg.files.each do |entry|
-          next if entry.dir?
+          next if entry.is_a?(DirectoryNode)
           installed_pkgs = installed_path_package(entry.path)
           if installed_pkgs.empty? &&
              (entry.tlpdb_tag == TLPDB::Tag::RUNFILES ||
@@ -1464,61 +1708,150 @@ module TLpsrc2spec
                   end
                 end
                 basename.pos = xpos
-                StringCase.strcase_case_insensitive \
+                check_complete_filename = false
+                # Begging of filename matching
+                StringCase.strcase(case_insensitive: true) do
                   case basename
-                # README and common names
-                when "README", "LICENSE", "LICENCE", "COPYING",
-                     "COPYRIGHT", "CHANGES", "VERSION", "ChangeLog",
-                     "INSTALL", "ABOUT", "NEWS", "THANKS", "TODO",
-                     "AUTHORS", "BACKLOG", "FONTLOG", "FAQ",
-                     "NOTICE", "00readme"
-                  nil
-                  # License filename
-                when "OFL", "GPL"
-                  nil
-                  # for aastex
-                when "natnotes.tex"
-                  nil
-                  # for afparticle
-                when "vitruvian.jpg"
-                  nil
-                  # for ametstoc
-                when "template.tex"
-                  nil
-                  # for changebar
-                when "cbtest1.tex"
-                  nil
-                  # for background
-                when "background.pdf"
-                  nil
-                  # for classisthesis
-                when "abstract.tex"
-                  nil
-                  # for lshort etc.
-                when "title.tex"
-                  nil
-                  # for ketcindy
-                when "fourier.tex"
-                  nil
-                  # for fascicules
-                when "tikz.tex"
-                  nil
-                  # for url
-                when "miscdoc.sty"
-                  nil
-                  # maven
-                when "build.xml"
-                  nil
-                  # generic names used by many packages.
-                when "exmaple.pdf", "example.tex", "sample.pdf",
-                     "sample.tex", "layout.pdf",
-                     "appendix", "grid.tex", "chart.tex", "test.tex",
-                     "alea.tex", "fill.tex", "ltxdoc.cfg", "minimal.tex",
-                     "at.pdf", "references.bib", "manifest", "logo.pdf",
-                     "help.tex", "guide.pdf", "preamble.tex", "intro.tex"
-                  nil
-                else
-                  path = found[0]
+                  # README and common names
+                  when "README", "LICENSE", "LICENCE", "COPYING",
+                       "COPYRIGHT", "CHANGES", "VERSION", "ChangeLog",
+                       "INSTALL", "ABOUT", "NEWS", "THANKS", "TODO",
+                       "AUTHORS", "BACKLOG", "FONTLOG", "FAQ",
+                       "NOTICE", "HISTORY", "MANIFEST", "00readme",
+                       "LISTOFFILES"
+                    nil
+                    # License filename
+                  when "OFL", "GPL", "lppl"
+                    nil
+                  # example
+                  when "sample", "example"
+                    nil
+                  else
+                    check_complete_filename = true
+                  end
+                end
+                if check_complete_filename
+                  # complete file name
+                  basename.pos = xpos
+                  StringCase.strcase(case_insensitive: true,
+                    complete: true) do
+                    case basename
+                    # for asymptote
+                    when "helix.asy"
+                      nil
+                    # for pst-marble
+                    when "ex5.tex"
+                      nil
+                    # for texlive-es
+                    when "tex-live.css"
+                      nil
+                    # for aastex
+                    when "natnotes.tex"
+                      nil
+                      # for afparticle
+                    when "vitruvian.jpg"
+                      nil
+                      # for ametstoc
+                    when "template.tex"
+                      nil
+                      # for changebar
+                    when "cbtest1.tex"
+                      nil
+                      # for background
+                    when "background.pdf"
+                      nil
+                      # for classisthesis
+                    when "abstract.tex"
+                      nil
+                      # for lshort etc.
+                    when "title.tex"
+                      nil
+                      # for ketcindy
+                    when "fourier.tex"
+                      nil
+                      # for fascicules
+                    when "tikz.tex"
+                      nil
+                      # for url
+                    when "miscdoc.sty"
+                      nil
+                      # arabi and poetry are not related.
+                    when "poetry.sty"
+                      nil
+                      # maven
+                    when "build.xml"
+                      nil
+                    # lapdf vs apprends-latex
+                    when "curve.tex"
+                      nil
+                      # beamer (very major package used for presentations)
+                    when "beamer"
+                      nil
+                      # pdfscreen
+                    when "pdfscreen"
+                      nil
+                      # genmisc (plain pkg) / piff (latex pkg)
+                    when "time.sty"
+                      nil
+                      # media9 (as runfiles) / movie15 (as docfiles)
+                    when "animation.js"
+                      nil
+                      # skak (as docfiles) / context (as docfiles)
+                    when "demo-symbols.tex"
+                      nil
+                      # skak (plain pkg) / lambda-lists (latex pkg)
+                    when "lambda.sty"
+                      nil
+                      # latexmk-config file
+                    when "latexmkrc"
+                      nil
+                      # adobemapping (map-info) / bibtexperllibs (script dir)
+                    when "ToUnicode"
+                      nil
+                    # language names
+                    when "mongolian", "lithuanian", "latin", "german"
+                      nil
+                      # some directories
+                    when "doc", "docs", "documentation", "configuration",
+                         "css", "files", "metafont", "images", "src",
+                         "manual", "glossaries", "english", "resources",
+                         "fonts", "figures", "code", "scripts", "mf",
+                         "errata", "unsupported", "auto", "data", "macro",
+                         "tex", "prog", "context", "bera", "fig", "contrib",
+                         "tex4ht", "base", "c", "algorithms", "bib",
+                         "bibtex", "biblatex", "interface", "demo", "util",
+                         "utils", "template", "templates", "include", "tikz",
+                         "dirtree", "TeXLive", "weather", "ms", "general",
+                         "style", "styles", "modules", "pdfs", "vf", "tfm",
+                         "afm", "source", "encodings", "eu", "lib", "config",
+                         "testsuite", "tools", "test", "tests", "latex",
+                         "back", "themes", "bidi", "clock", "graphics",
+                         "lua", "reference", "completion", "pictures",
+                         "sq", "ar", "support", "arphic", "adobe", "apa",
+                         "abstract", "vtex"
+                      nil
+                      # generic names used by many packages.
+                    when "layout.pdf", "introduction.tex", "index.html",
+                         "appendix", "grid.tex", "chart.tex", "test.tex",
+                         "alea.tex", "fill.tex", "ltxdoc.cfg", "rules.tex",
+                         "minimal.tex", "at.pdf", "references.bib",
+                         "manifest", "logo.pdf", "help.tex", "guide.pdf",
+                         "preamble.tex", "intro.tex", "math.tex",
+                         "fonts.tex", "preface.tex", "tableaux", "test.mf",
+                         "submit.tex", "user-guide.pdf", "publish.tex",
+                         "config.tex", "listing.tex", "manual.tex",
+                         "appendix.tex", "frontmatter.tex", "layout.tex",
+                         "annexe.tex", "conclusion.tex", "subeqn.tex",
+                         "figure1.pdf", "bibliography.bib", "graphics.tex",
+                         "metafun.tex", "cover.tex", "doc.pdf", "index.tex",
+                         "summary.tex", "charpter1.tex", "references.tex",
+                         "implicit.tex", "letter.tex", "slides.tex",
+                         "concepts.tex"
+                      nil
+                    else
+                      path = found[0]
+                    end
+                  end
                 end
               else
                 path = found[0]
@@ -1547,7 +1880,7 @@ module TLpsrc2spec
                     if path
                       str << " (by file '"
                       str << path
-                      str << "' which will be replaced by '"
+                      str << "' which is assumed to be replaced by '"
                       str << entry.path
                       str << "')"
                     else
@@ -1581,18 +1914,27 @@ module TLpsrc2spec
       end
 
       # Special obsoletes
-      if (xdvi = packages?("texlive-xdvi")) &&
-         (pxdvi = installed_pkgs["texlive-pxdvik"]?)
-        pxdvi_pkg = pxdvi.each_value.first
-        log.info { "#{xdvi.name} obsoletes #{pxdvi_pkg.name}" }
-        xdvi.obsoletes << make_obsolete(pxdvi_pkg)
+      [
+        {"texlive-xdvi", "texlive-pxdvik"},
+        {"texlive-ptexenc-libs", "texlive-ptexenc"},
+        {"texlive-lshort-portuguese", "texlive-texmf-lshort-portuguese"},
+        {"texlive-platex", "texlive-texmf-eptex"},
+        {"texlive-context-algorithmic", "texlive-texmf-context-algorithmic"},
+      ].each do |entry|
+        obsolete_installed_pkg_if_not(entry[0], entry[1], log: true)
+      rescue InstalledPackageNotFound
       end
+
+      obso_all = RPM::Obsolete.new("texlive-all",
+        RPM::Version.new("2010-28m"),
+        RPM::Sense::LESS, nil)
+      obsolete_if_not("texlive-scheme-full", obso_all, log: true)
     end
 
     def check_obsoletes
       log.info { "Finding packages which won't be obsoleted..." }
-      scheme_full = packages("texlive-scheme-full")
-      cset = installed_db.each_base_package.to_set
+      cleanup = packages("cleanup-packages-texlive")
+      cset = installed_db.each_package.to_set
       obsoleted_by = {} of String => Set(TLpsrc2spec::Package)
       found_obsoletes = Set(String).new
       each_package do |pkg|
@@ -1641,16 +1983,14 @@ module TLpsrc2spec
           end
         end
       end
-      dset = installed_db.each_base_package
-      dset.each do |pkg|
+      installed_db.each_base_package do |pkg|
         if found_obsoletes.includes?(pkg.name)
           next
         end
         obso = make_obsolete(pkg)
         log.warn { "Nothing obsoletes #{obso.name}-#{obso.version.to_vre}" }
-        scheme_full.obsoletes << obso
+        cleanup.obsoletes << obso
       end
-      scheme_full.obsoletes << RPM::Obsolete.new("texlive-all", RPM::Version.new("2019"), RPM::Sense::LESS, nil)
 
       log.info { "Reverse obsoletion info" }
       obsoleted_by.each do |name, pkgs|
@@ -1716,6 +2056,7 @@ module TLpsrc2spec
       @master.url = "http://www.tug.org/texlive/"
       @master.version = "2019"
       @master.release = "%{momorel}m%{dist}"
+      @master.archdep = true
 
       # Use LPPL as a mandatory license.
       license = Set{"LPPL"}
@@ -1724,12 +2065,13 @@ module TLpsrc2spec
         pkg.license.each do |lic|
           io.print lic
           io.pos = 0
-          StringCase.strcase \
+          StringCase.strcase do
             case io
-          when "see \""
-            license.add "see \"LICENSE\""
-          else
-            license.add lic
+            when "see \""
+              license.add "see \"LICENSE\""
+            else
+              license.add lic
+            end
           end
           io.clear
         end
@@ -1742,10 +2084,12 @@ module TLpsrc2spec
         pkg.files.each do |entry|
           path = entry.path
           [
-            {TEXMFDIR, "%{_texmfdir}"},
-            {TEXMFDISTDIR, "%{_texmfdir}"},
+            # {TEXMFDISTDIR, "%{_texmfdistdir}"},
             {TEXMFVARDIR, "%{_texmfvardir}"},
             {TEXMFCONFIGDIR, "%{_texmfconfigdir}"},
+            {TEXMFLOCALDIR, "%{_texmflocaldir}"},
+            {TEXMFDIR, "%{_texmfdir}"},
+            {TEXLIVE_HOOKDIR, "%{_texlive_hookdir}"},
             {BINDIR, "%{_bindir}"},
             {LIBDIR, "%{_libdir}"},
             {INCLUDEDIR, "%{_includedir}"},
@@ -1763,11 +2107,118 @@ module TLpsrc2spec
       end
     end
 
+    def add_mktexlsr_script(target : TLpsrc2spec::Package,
+                            filesystem_pkg : TLpsrc2spec::Package)
+      if target == filesystem_pkg
+        return nil
+      end
+      if target.name == "kpathsea-bin"
+        mktexlsr = true
+      else
+        mktexlsr = target.tlpdb_pkgs.any? do |tlpkg|
+          tlpkg.runfiles.size > 0
+        end
+      end
+      if !mktexlsr
+        return nil
+      end
+      path_i = StringCase::Single.new
+      mktexlsrdirs = target.files.compact_map do |entry|
+        path_i.clear
+        path_i.print entry.path
+        path_i.pos = 0
+        {% begin %}
+          StringCase.strcase do
+            case path_i
+                {% for mf in TEXMF %}
+                  {% var = "%{_" + mf.stringify.downcase + "}" %}
+                when {{var}}
+                  {{var}}
+                {% end %}
+            else
+              nil
+            end
+          end
+        {% end %}
+      end
+      mktexlsrdirs.uniq!
+      target.post = String.build do |b|
+        if (post = target.post)
+          b << post
+        end
+        mktexlsrdirs.each do |path|
+          b << "%{_post_mktexlsr " << path << "}\n"
+        end
+      end
+      target.posttrans = String.build do |b|
+        if (posttrans = target.posttrans)
+          b << posttrans
+        end
+        mktexlsrdirs.each do |path|
+          b << "%{_posttrans_mktexlsr "
+          b << path
+          b << "}\n"
+        end
+      end
+      nil
+    end
+
+    def add_updmap_script(target)
+      execs = [] of TLPDB::Execute::AddMap
+      target.tlpdb_pkgs.each do |tlpkg|
+        tlpkg.executes.each do |ex|
+          if ex.is_a?(TLPDB::Execute::AddMap)
+            execs << ex
+          end
+        end
+      end
+      if execs.size == 0
+        return
+      end
+      # target.install_script = String.build do |b|
+      #   if (i = target.install_script)
+      #     b << i
+      #   end
+      #   execs.each do |ex|
+      #     b << "%{_updmap_addmap} "
+      #     b << ex.maptype.to_s << " "
+      #     b << ex.mapfile << "\n"
+      #   end
+      # end
+      target.post = String.build do |b|
+        if (i = target.post)
+          b << i
+        end
+        execs.each do |ex|
+          b << "%{_post_updmap "
+          b << ex.maptype.to_s << " " << ex.mapfile << "}\n"
+        end
+      end
+      target.postun = String.build do |b|
+        if (i = target.postun)
+          b << i
+        end
+        execs.each do |ex|
+          b << "%{_postun_updmap "
+          b << ex.maptype.to_s << " " << ex.mapfile << "}\n"
+        end
+      end
+      target.posttrans = String.build do |b|
+        if (i = target.posttrans)
+          b << i
+        end
+        execs.each do |ex|
+          b << "%{_posttrans_updmap "
+          b << ex.maptype.to_s << " " << ex.mapfile << "}\n"
+        end
+      end
+    end
+
     def add_script
+      fspkg = packages("texlive-filesystem")
       each_package do |pkg|
-        mktexlsr = false
-        updmap = [] of String
-        fmtutil = [] of String
+        add_mktexlsr_script(pkg, fspkg)
+        add_updmap_script(pkg)
       end
     end
 
