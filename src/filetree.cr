@@ -13,14 +13,6 @@ module TLpsrc2spec
     def initialize(@name, @parent, @package = nil)
     end
 
-    def file?
-      true
-    end
-
-    def dir?
-      false
-    end
-
     def path(io : IO)
       ret = true
       if parent != self
@@ -58,14 +50,6 @@ module TLpsrc2spec
     getter entries : DirectoryEntries = DirectoryEntries.new
 
     def initialize(@name, @parent = self, @package = nil)
-    end
-
-    def file?
-      false
-    end
-
-    def dir?
-      true
     end
 
     def add_entry(entry : FileNode)
