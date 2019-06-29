@@ -163,6 +163,21 @@ module TLpsrc2spec
           write_tag_paragraph(io, "description", @master.name,
             package.name, package.description)
         end
+      when RPM::Tag::PreIn
+        if package.post
+          write_tag_paragraph(io, "pre", @master.name,
+                              package.name, package.post)
+        end
+      when RPM::Tag::PreTrans
+        if package.posttrans
+          write_tag_paragraph(io, "pretrans", @master.name,
+                              package.name, package.posttrans)
+        end
+      when RPM::Tag::PreUn
+        if package.postun
+          write_tag_paragraph(io, "preun", @master.name,
+                              package.name, package.postun)
+        end
       when RPM::Tag::PostIn
         if package.post
           write_tag_paragraph(io, "post", @master.name,
@@ -222,7 +237,8 @@ module TLpsrc2spec
     end
 
     def write_scripts(io : IO)
-      [RPM::Tag::PostIn, RPM::Tag::PostUn, RPM::Tag::PostTrans].each do |t|
+      [RPM::Tag::PreIn, RPM::Tag::PreUn, RPM::Tag::PreTrans,
+       RPM::Tag::PostIn, RPM::Tag::PostUn, RPM::Tag::PostTrans].each do |t|
         @packages.each do |n, pkg|
           write_tag(io, pkg, t)
         end
