@@ -1,16 +1,5 @@
 require "./strcase"
 
-# {% if compare_versions(Crystal::VERSION, "0.28.999999") < 0 %}
-#   # Monkey-Patching Set.
-#   struct Set(T)
-#     def delete_if(&block)
-#       @hash.delete_if do |*args|
-#         yield *args
-#       end
-#     end
-#   end
-# {% end %}
-
 module TLpsrc2spec
   class MomongaRule < Rule
     class Package < TLpsrc2spec::Package
@@ -854,6 +843,10 @@ module TLpsrc2spec
       case name
       when /^00texlive/
         nil
+      when /^texlive-scripts/
+        nil
+      when /^texlive\.infra\./
+        nil
       when "collection-wintools"
         nil
       when "collection-texworks", "texworks"
@@ -931,7 +924,7 @@ module TLpsrc2spec
         kpselib.files << FileEntry.new(File.join(LIBDIR, "#{libname}*.so.*"))
       end
       if kpsedev && kpselib
-        kpsedev.requires << kpselib.name
+        kpsedev.requires << "#{kpselib.name} == %{version}-%{release}"
       end
       xtlpkg = nil
       if tlpkg
@@ -1213,6 +1206,26 @@ module TLpsrc2spec
       end
     end
 
+    def add_info_file(pkg : TLpsrc2spec::Package, path : String)
+      xpath = File.join(INFODIR, path)
+      xname = File.join("%{_infodir}", path)
+      base = File.basename(xpath)
+      pkg.post = String.build do |str|
+        if pkg.post
+          str << pkg.post
+        end
+        str << "/sbin/install-info " << xname << " %{_infodir}/dir || :\n"
+      end
+      pkg.preun = String.build do |str|
+        if pkg.preun
+          str << pkg.preun
+        end
+        str << "test $1 -eq 0 && /sbin/install-info --delete " << xname
+        str << " %{_infodir}/dir || :\n"
+      end
+      xpath + "*"
+    end
+
     def expand_tlpdb_files(pkg : TLpsrc2spec::Package, tlpkg : TLPDB::Package,
                            tag : TLPDB::Tag, files : TLPDB::Files)
       files.each do |pinfo|
@@ -1262,12 +1275,30 @@ module TLpsrc2spec
                    "web2c/updmap.cfg",
                    "xdvi/XDvi"
                 add_config_file(pkg, path)
+              when "scripts/texlive/tlmgr.pl",
+                   "scripts/texlive/tlmgrgui.pl",
+                   "scripts/texlive/uninstall-win32.pl",
+                   "scripts/texlive/uninstq.vbs"
+                log.debug { "Skipping TLPKG scripts: #{path}" }
+                skip = true
+              when "web2c/fmtutil-hdr.cnf",
+                   "web2c/updmap-hdr.cfg"
+                log.debug { "Skipping extra config: #{path}" }
+                skip = true
+              when "doc/info/"
+                pos_save = pathparser.pos
+                if path.ends_with?(".info")
+                  xpath = add_info_file(pkg, pathparser.gets.not_nil!)
+                  log.debug { "Info page #{path} -> #{xpath}" }
+                end
               when "doc/man/"
                 pos_save = pathparser.pos
                 StringCase.strcase do
                   case pathparser
                   when "man1/install-tl.1",
-                       "man1/install-tl.man1.pdf"
+                       "man1/install-tl.man1.pdf",
+                       "man1/tlmgr.1",
+                       "man1/tlmgr.man1.pdf"
                     log.debug { "Skipping TLPKG file: #{path}" }
                     skip = true
                   else
@@ -1280,11 +1311,19 @@ module TLpsrc2spec
                 end
               end
             end
-          when "install-tl" # "tlpkg/",
+          when "install-tl", "install-tl.bat" #, "tlpkg/"
             log.debug { "Skipping TLPKG file: #{path}" }
             skip = true
           when "tlpkg/"
-            xpath = File.join(TEXMFDIR, xpath)
+            StringCase.strcase do
+              case pathparser
+              when "installer/", "tltcl/"
+                log.debug { "Skipping TLPKG file: #{path}" }
+                skip = true
+              else
+                xpath = File.join(TEXMFDIR, xpath)
+              end
+            end
           when "release-texlive.txt",
                "README", "readme-txt.dir/", "readme-html.dir/",
                "LICENSE", "license", "doc.html", "index.html"
@@ -1292,7 +1331,7 @@ module TLpsrc2spec
             xpath = File.join(TEXMFDIR, xpath)
             doc = true
           else
-            log.warn { "Unknown fullpath for: #{path}" }
+            log.error { "Unknown fullpath for: #{path}" }
           end
         end
 
@@ -1334,8 +1373,7 @@ module TLpsrc2spec
 
         miss = FileConfig.new(missingok: true)
         ls_r = FileEntry.new(File.join(texmfdir, "ls-R"), config: miss)
-        ls_u = FileEntry.new(File.join(texmfdir, "%{ls_R_needs_update}"),
-          config: miss)
+        ls_u = FileEntry.new(File.join(texmfdir, "%{ls_R_needs_update}"), config: miss)
         tl_fs_pkg.files << ls_r
         tl_fs_pkg.files << ls_u
       end
@@ -1345,12 +1383,20 @@ module TLpsrc2spec
         pkg.tlpdb_pkgs.each do |tlpkg|
           {% for name, val in TLPDB::ALL_TAGS_DATA %}
             {% if val[:type] == :files %}
-              filessets = tlpkg.{{val[:var_symbol].id}}
-              filessets.each do |files|
-                expand_tlpdb_files(pkg, tlpkg,
-                                   TLPDB::Tag::{{val[:const_symbol].id}},
-                                   files)
-              end
+              {% begin %}
+                {% if val[:var_symbol] == :srcfiles %}
+                  if tlpkg.runfiles.empty?
+                {% end %}
+                filessets = tlpkg.{{val[:var_symbol].id}}
+                filessets.each do |files|
+                  expand_tlpdb_files(pkg, tlpkg,
+                                     TLPDB::Tag::{{val[:const_symbol].id}},
+                                     files)
+                end
+                {% if val[:var_symbol] == :srcfiles %}
+                  end
+                {% end %}
+              {% end %}
             {% end %}
           {% end %}
 
@@ -1593,7 +1639,7 @@ module TLpsrc2spec
           next
         end
         if pkg.files.size > 0
-          pkg.requires << "#{tl_fs_pkg.name} == %{version}-%{release}"
+          pkg.requires << "#{tl_fs_pkg.name} >= %{version}"
         end
       end
 
@@ -1610,7 +1656,7 @@ module TLpsrc2spec
       deptree.db.each_value do |node|
         from = node.package
         node.depends.each do |dep|
-          from.requires << dep.name
+          from.requires << "#{dep.name} >= %{version}"
         end
       end
 
@@ -1621,6 +1667,16 @@ module TLpsrc2spec
       end
     end
 
+    # Make obsolete object from RPM::Package
+    def make_obsolete(rpmpkg : RPM::Package,
+                      f : RPM::Sense = RPM::Sense::LESS | RPM::Sense::EQUAL)
+      v = rpmpkg[RPM::Tag::Version].as(String)
+      r = rpmpkg[RPM::Tag::Release].as(String).sub(/\.mo\d+$/, "")
+      e = rpmpkg[RPM::Tag::Epoch].as(UInt32?)
+      version = RPM::Version.new(v, r, e)
+      RPM::Obsolete.new(rpmpkg.name, version, f, nil)
+    end
+
     def obsolete_old_packages
       log.info { "Creating obsoletion entries" }
       metadirs = [OLDTEXMFDIR, OLDTEXMFDISTDIR]
@@ -1629,13 +1685,21 @@ module TLpsrc2spec
         name = pkg.name
         log.info { "Searching obsoletion info for #{name}" }
         pkg.files.each do |entry|
-          next if entry.is_a?(DirectoryNode)
+          next if entry.dir?
+
+          # If there is a path matches exactly, use it.
+          #
+          # For srcfiles and binfiles, only use exact matching.
+          #
           installed_pkgs = installed_path_package(entry.path)
           if installed_pkgs.empty? &&
              (entry.tlpdb_tag == TLPDB::Tag::RUNFILES ||
              entry.tlpdb_tag == TLPDB::Tag::DOCFILES)
             basename = File.basename(entry.path)
             paths = installed_file_path(basename)
+
+            # Do not cross-site (for runfiles, exclude `TEXMF/doc`,
+            # for docfiles, include only `TEXMF/doc`) files.
             if entry.tlpdb_tag == TLPDB::Tag::RUNFILES
               filter = Proc(String, Bool).new do |path|
                 if docdirs.any? { |dir| path.starts_with?(dir) }
@@ -1655,6 +1719,15 @@ module TLpsrc2spec
                 end
               end
             end
+
+            # Compute the path matching score.
+            #
+            # Score is the number of path elements where same. So, for
+            # `/a/b/c/d/e` and `/a/b/x/d/e`, the score will be 2 (`d`
+            # and `e`).
+            #
+            # Use the path with the maximum score.
+            #
             pathparts = Path.new(entry.path).parts
             h_map = paths.compact_map do |path|
               if filter.call(path)
@@ -1697,6 +1770,11 @@ module TLpsrc2spec
               end
             end
             path = nil
+
+            # For the paths whose score is less than or equal to 3,
+            # accept that path only if its basename of ths path is NOT
+            # the one of specific one.
+            #
             if found
               if found[1] <= 3
                 basename = StringCase::Single.new(found[0])
@@ -1713,19 +1791,92 @@ module TLpsrc2spec
                 StringCase.strcase(case_insensitive: true) do
                   case basename
                   # README and common names
-                  when "README", "LICENSE", "LICENCE", "COPYING",
+                  when "README", "LICENSE", "LICENCE", "COPYING", "LEGAL",
                        "COPYRIGHT", "CHANGES", "VERSION", "ChangeLog",
                        "INSTALL", "ABOUT", "NEWS", "THANKS", "TODO",
-                       "AUTHORS", "BACKLOG", "FONTLOG", "FAQ",
+                       "AUTHORS", "BACKLOG", "FONTLOG", "FAQ", "ANNOUNCE",
                        "NOTICE", "HISTORY", "MANIFEST", "00readme",
-                       "LISTOFFILES"
+                       "LISTOFFILES", "LIESMICH", "RELEASE", "CATALOG",
+                       "LISEZMOI", "READ.ME", "01install"
                     nil
                     # License filename
-                  when "OFL", "GPL", "lppl"
+                  when "OFL", "GPL", "lppl", "fdl", "GUST-FONT-LICENSE"
                     nil
                   # example
-                  when "sample", "example"
+                  when "sample", "example", "exemple"
                     nil
+                  # appendix
+                  when "appendix"
+                    nil
+                  # opentype
+                  when "opentype", "truetype"
+                    nil
+                  # logo
+                  when "logo"
+                    nil
+                  # /[0-9][0-9-]*\.ltx.*/
+                  when "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
+                    pos = xpos
+                    while true
+                      case yych
+                      when '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
+                           '-'
+                      else
+                        basename.pos = pos
+                        break
+                      end
+                      pos = basename.pos
+                      yych = basename.next_char
+                    end
+                    StringCase.strcase(case_insensitive: true) do
+                      case basename
+                      when ".ltx"
+                        nil
+                      else
+                        check_complete_filename = true
+                      end
+                    end
+
+                  # /(chap|test|fig|note)[0-9]*\.(tex|pdf)/
+                  when "chap", "test", "fig", "note"
+                    pos = basename.pos
+                    yych = basename.next_char
+                    while true
+                      case yych
+                      when '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'
+                      else
+                        basename.pos = pos
+                        break
+                      end
+                      pos = basename.pos
+                      yych = basename.next_char
+                    end
+                    StringCase.strcase(case_insensitive: true, complete: true) do
+                      case basename
+                      when ".tex", ".pdf"
+                        nil
+                      else
+                        check_complete_filename = true
+                      end
+                    end
+
+                  # /cv_template_(en|it|de|pl)\.(tex|pdf)/
+                  when "cv_template_"
+                    StringCase.strcase(case_insensitive: true) do
+                      case basename
+                      when "en", "it", "de", "pl"
+                        StringCase.strcase(case_insensitive: true, complete: true) do
+                          case basename
+                          when ".tex", ".pdf"
+                            nil
+                          else
+                            check_complete_filename = true
+                          end
+                        end
+                      else
+                        check_complete_filename = true
+                      end
+                    end
                   else
                     check_complete_filename = true
                   end
@@ -1733,9 +1884,17 @@ module TLpsrc2spec
                 if check_complete_filename
                   # complete file name
                   basename.pos = xpos
-                  StringCase.strcase(case_insensitive: true,
-                    complete: true) do
+                  StringCase.strcase(case_insensitive: true, complete: true) do
                     case basename
+                    # for amscls / math-into-latex-4 (template file)
+                    when "amsproc.template"
+                      nil
+                    # amscls (just in source) / amsmath (real class file)
+                    when "amsdoc.cls"
+                      nil
+                    # for lapdf (arcs.pdf is duplicated name used in arcs)
+                    when "arcs.pdf"
+                      nil
                     # for asymptote
                     when "helix.asy"
                       nil
@@ -1762,9 +1921,6 @@ module TLpsrc2spec
                       nil
                       # for classisthesis
                     when "abstract.tex"
-                      nil
-                      # for lshort etc.
-                    when "title.tex"
                       nil
                       # for ketcindy
                     when "fourier.tex"
@@ -1808,45 +1964,77 @@ module TLpsrc2spec
                       # adobemapping (map-info) / bibtexperllibs (script dir)
                     when "ToUnicode"
                       nil
+                    # dozenal / misc (seems unrelated)
+                    when "gray.tfm"
+                      nil
+                    # bibtopic / latex-bib[2]-ex / biblatex-philosophy
+                    when "articles.bib", "natbib.cfg", "de-examples-dw.bib",
+                         "philosophy-examples.bib", "biblatex-examples.bib"
+                      nil
                     # language names
-                    when "mongolian", "lithuanian", "latin", "german"
+                    when "mongolian", "lithuanian", "latin", "german",
+                         "italian.pdf", "romanian.pdf", "thai.pdf",
+                         "greek-utf8.pdf", "greek-utf8.tex",
+                         "bulgarian-utf8.tex", "bulgarian-koi8-r.tex",
+                         "maltese-maltese.tex", "maltese-utf8.tex",
+                         "ireland.jpg"
                       nil
-                      # some directories
-                    when "doc", "docs", "documentation", "configuration",
-                         "css", "files", "metafont", "images", "src",
-                         "manual", "glossaries", "english", "resources",
-                         "fonts", "figures", "code", "scripts", "mf",
-                         "errata", "unsupported", "auto", "data", "macro",
-                         "tex", "prog", "context", "bera", "fig", "contrib",
-                         "tex4ht", "base", "c", "algorithms", "bib",
-                         "bibtex", "biblatex", "interface", "demo", "util",
-                         "utils", "template", "templates", "include", "tikz",
-                         "dirtree", "TeXLive", "weather", "ms", "general",
-                         "style", "styles", "modules", "pdfs", "vf", "tfm",
-                         "afm", "source", "encodings", "eu", "lib", "config",
-                         "testsuite", "tools", "test", "tests", "latex",
-                         "back", "themes", "bidi", "clock", "graphics",
-                         "lua", "reference", "completion", "pictures",
-                         "sq", "ar", "support", "arphic", "adobe", "apa",
-                         "abstract", "vtex"
+                    # lshort-*
+                    when  "custom.tex", "lshort-base.tex", "math.tex",
+                          "lshort.sty", "lssym.tex", "mylayout.sty",
+                          "spec.tex", "things.tex", "title.tex",
+                          "fancyhea.sty", "typeset.tex", "overview.tex"
                       nil
-                      # generic names used by many packages.
+                    # revtex / revtex4
+                    when "ltxgrid.pdf", "ltxutil.pdf", "docs.sty",
+                         "ltxdocext.pdf", "ltxfront.pdf", "fig_1.eps",
+                         "fig_2.eps", "apssamp.tex", "apssamp.bib"
+                      nil
+                    # generic names used by many packages.
                     when "layout.pdf", "introduction.tex", "index.html",
-                         "appendix", "grid.tex", "chart.tex", "test.tex",
+                         "appendix", "grid.tex", "chart.tex", "manual.pdf",
                          "alea.tex", "fill.tex", "ltxdoc.cfg", "rules.tex",
-                         "minimal.tex", "at.pdf", "references.bib",
-                         "manifest", "logo.pdf", "help.tex", "guide.pdf",
-                         "preamble.tex", "intro.tex", "math.tex",
-                         "fonts.tex", "preface.tex", "tableaux", "test.mf",
-                         "submit.tex", "user-guide.pdf", "publish.tex",
-                         "config.tex", "listing.tex", "manual.tex",
-                         "appendix.tex", "frontmatter.tex", "layout.tex",
+                         "minimal.tex", "references.bib", "translation.tex",
+                         "manifest", "logo.pdf", "guide.pdf", "intro.tex",
+                         "preamble.tex", "publish.tex", "test.mf", "at.pdf",
+                         "fonts.tex", "preface.tex", "tableaux", "demo.tex",
+                         "submit.tex", "user-guide.pdf", "listing.tex",
+                         "config.tex", "help.tex", "pgfmanual-en-macros.tex",
+                         "frontmatter.tex", "layout.tex", "introduction.pdf",
                          "annexe.tex", "conclusion.tex", "subeqn.tex",
                          "figure1.pdf", "bibliography.bib", "graphics.tex",
                          "metafun.tex", "cover.tex", "doc.pdf", "index.tex",
                          "summary.tex", "charpter1.tex", "references.tex",
-                         "implicit.tex", "letter.tex", "slides.tex",
-                         "concepts.tex"
+                         "implicit.tex", "letter.tex", "cv.tex", "test.pdf",
+                         "concepts.tex", "refs.bib", "main.tex", "clean.bat",
+                         "ack.tex", "main.pdf", "thesis.bib", "slides.tex",
+                         "mybib.bib", "hyphenation.tex", "resume.tex",
+                         "biblio.tex", "compilation.tex", "glossary.tex",
+                         "getversion.tex", "intro.pdf", "ggamsart.tpl",
+                         "Makefile", "GNUmakefile", "index.xml", "demo.pdf",
+                         "books.bib", "notes.pdf", "luatex.pdf", "make.bat",
+                         "graphics.pdf", "context.html", "bib.bib", "ps.tex",
+                         "header.inc", "circle.pdf", "circle.tex", "tds.tex",
+                         "rotbox.png", "optional.tex", "source.tex",
+                         "symbols.tex", "letter.ist", "style.css", "tex.bib",
+                         "guide.tex", "curve.pdf", "geometry.pdf", "test.sh",
+                         "generate.sh", "backm.tex", "book.tex", "image.pdf",
+                         "eplain.tex", "description.pdf", "polynom.pdf",
+                         "vector.pdf", "macros.tex", "Thumbs.db", "bibl.tpl",
+                         "thesis.tex", "makedoc.sh", "glyphs.tex", "cat.eps",
+                         "guitar.tex", "songbook.pdf", "appendices.tex",
+                         "minimal.pdf", "bild.pdf", "list.tex", "block.tex",
+                         "contrib.tex", "fontspec.pdf", "header.tex",
+                         "denotation.tex", "dtx-style.sty", "invoice.tex",
+                         "context.tex", "options.pdf", "intrart.tex",
+                         "mathb.tex", "note1b.tex", "data1.dat", "table.tex",
+                         "noteslug.tex", "sampart.tex", "minutes.pdf",
+                         "franc.sty", "comment.tex", "description.tex",
+                         "hyper.pdf", "manual.tex", "tiger.eps", "proba.pdf",
+                         "graphic.tex", "article.tex", "publications.pdf",
+                         "user-guide.tex", "table.pdf", "textmerg.tex",
+                         "tipa.bib", "seminar.con", "perso.ist", "urlbst",
+                         "buch.tex"
                       nil
                     else
                       path = found[0]
@@ -2019,7 +2207,7 @@ module TLpsrc2spec
                        pname == x
                      end
                     log.info { "  * #{pname}" }
-                    newtljap.requires << pname
+                    newtljap.requires << "#{pname} >= %{version}"
                   end
                 end
               elsif (whatprovides = packages?(name))
@@ -2027,7 +2215,7 @@ module TLpsrc2spec
                      name == x
                    end
                   log.info { "  * #{name}" }
-                  newtljap.requires << name
+                  newtljap.requires << "#{name} >= %{version}"
                 end
               elsif !name.starts_with?("rpmlib")
                 log.warn { "  ... Nothing found which provides #{name}" }
@@ -2096,6 +2284,7 @@ module TLpsrc2spec
             {SYSCONFDIR, "%{_sysconfdir}"},
             {SHAREDSTATEDIR, "%{_sharedstatedir}"},
             {MANDIR, "%{_mandir}"},
+            {INFODIR, "%{_infodir}"},
             {DATADIR, "%{_datadir}"},
           ].each do |mfpath, repl|
             if path.starts_with?(mfpath)
