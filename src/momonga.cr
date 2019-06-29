@@ -1311,7 +1311,7 @@ module TLpsrc2spec
                 end
               end
             end
-          when "install-tl", "install-tl.bat" #, "tlpkg/"
+          when "install-tl", "install-tl.bat" # , "tlpkg/"
             log.debug { "Skipping TLPKG file: #{path}" }
             skip = true
           when "tlpkg/"
@@ -1802,19 +1802,19 @@ module TLpsrc2spec
                     # License filename
                   when "OFL", "GPL", "lppl", "fdl", "GUST-FONT-LICENSE"
                     nil
-                  # example
+                    # example
                   when "sample", "example", "exemple"
                     nil
-                  # appendix
+                    # appendix
                   when "appendix"
                     nil
-                  # opentype
+                    # opentype
                   when "opentype", "truetype"
                     nil
-                  # logo
+                    # logo
                   when "logo"
                     nil
-                  # /[0-9][0-9-]*\.ltx.*/
+                    # /[0-9][0-9-]*\.ltx.*/
                   when "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
                     pos = xpos
                     while true
@@ -1837,7 +1837,7 @@ module TLpsrc2spec
                       end
                     end
 
-                  # /(chap|test|fig|note)[0-9]*\.(tex|pdf)/
+                    # /(chap|test|fig|note)[0-9]*\.(tex|pdf)/
                   when "chap", "test", "fig", "note"
                     pos = basename.pos
                     yych = basename.next_char
@@ -1860,7 +1860,7 @@ module TLpsrc2spec
                       end
                     end
 
-                  # /cv_template_(en|it|de|pl)\.(tex|pdf)/
+                    # /cv_template_(en|it|de|pl)\.(tex|pdf)/
                   when "cv_template_"
                     StringCase.strcase(case_insensitive: true) do
                       case basename
@@ -1889,22 +1889,22 @@ module TLpsrc2spec
                     # for amscls / math-into-latex-4 (template file)
                     when "amsproc.template"
                       nil
-                    # amscls (just in source) / amsmath (real class file)
+                      # amscls (just in source) / amsmath (real class file)
                     when "amsdoc.cls"
                       nil
-                    # for lapdf (arcs.pdf is duplicated name used in arcs)
+                      # for lapdf (arcs.pdf is duplicated name used in arcs)
                     when "arcs.pdf"
                       nil
-                    # for asymptote
+                      # for asymptote
                     when "helix.asy"
                       nil
-                    # for pst-marble
+                      # for pst-marble
                     when "ex5.tex"
                       nil
-                    # for texlive-es
+                      # for texlive-es
                     when "tex-live.css"
                       nil
-                    # for aastex
+                      # for aastex
                     when "natnotes.tex"
                       nil
                       # for afparticle
@@ -1937,7 +1937,7 @@ module TLpsrc2spec
                       # maven
                     when "build.xml"
                       nil
-                    # lapdf vs apprends-latex
+                      # lapdf vs apprends-latex
                     when "curve.tex"
                       nil
                       # beamer (very major package used for presentations)
@@ -1964,14 +1964,14 @@ module TLpsrc2spec
                       # adobemapping (map-info) / bibtexperllibs (script dir)
                     when "ToUnicode"
                       nil
-                    # dozenal / misc (seems unrelated)
+                      # dozenal / misc (seems unrelated)
                     when "gray.tfm"
                       nil
-                    # bibtopic / latex-bib[2]-ex / biblatex-philosophy
+                      # bibtopic / latex-bib[2]-ex / biblatex-philosophy
                     when "articles.bib", "natbib.cfg", "de-examples-dw.bib",
                          "philosophy-examples.bib", "biblatex-examples.bib"
                       nil
-                    # language names
+                      # language names
                     when "mongolian", "lithuanian", "latin", "german",
                          "italian.pdf", "romanian.pdf", "thai.pdf",
                          "greek-utf8.pdf", "greek-utf8.tex",
@@ -1979,18 +1979,18 @@ module TLpsrc2spec
                          "maltese-maltese.tex", "maltese-utf8.tex",
                          "ireland.jpg"
                       nil
-                    # lshort-*
-                    when  "custom.tex", "lshort-base.tex", "math.tex",
-                          "lshort.sty", "lssym.tex", "mylayout.sty",
-                          "spec.tex", "things.tex", "title.tex",
-                          "fancyhea.sty", "typeset.tex", "overview.tex"
+                      # lshort-*
+                    when "custom.tex", "lshort-base.tex", "math.tex",
+                         "lshort.sty", "lssym.tex", "mylayout.sty",
+                         "spec.tex", "things.tex", "title.tex",
+                         "fancyhea.sty", "typeset.tex", "overview.tex"
                       nil
-                    # revtex / revtex4
+                      # revtex / revtex4
                     when "ltxgrid.pdf", "ltxutil.pdf", "docs.sty",
                          "ltxdocext.pdf", "ltxfront.pdf", "fig_1.eps",
                          "fig_2.eps", "apssamp.tex", "apssamp.bib"
                       nil
-                    # generic names used by many packages.
+                      # generic names used by many packages.
                     when "layout.pdf", "introduction.tex", "index.html",
                          "appendix", "grid.tex", "chart.tex", "manual.pdf",
                          "alea.tex", "fill.tex", "ltxdoc.cfg", "rules.tex",

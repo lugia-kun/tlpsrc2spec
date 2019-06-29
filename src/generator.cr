@@ -166,17 +166,17 @@ module TLpsrc2spec
       when RPM::Tag::PreIn
         if package.post
           write_tag_paragraph(io, "pre", @master.name,
-                              package.name, package.post)
+            package.name, package.post)
         end
       when RPM::Tag::PreTrans
         if package.posttrans
           write_tag_paragraph(io, "pretrans", @master.name,
-                              package.name, package.posttrans)
+            package.name, package.posttrans)
         end
       when RPM::Tag::PreUn
         if package.postun
           write_tag_paragraph(io, "preun", @master.name,
-                              package.name, package.postun)
+            package.name, package.postun)
         end
       when RPM::Tag::PostIn
         if package.post
