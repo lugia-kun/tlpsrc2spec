@@ -200,22 +200,24 @@ module StringCase
   end
 
   class Single < IO::Memory
-    @peek : Bool = false
-    @lchar : Char? = '\u0000'
+    @lchar : Char? = nil
     property marker : Int32 = -1
 
     def peek_char
-      if @peek
-        @lchar
+      if (ch = @lchar)
+        ch
       else
-        @peek = true
         @lchar = read_char
       end
     end
 
     def next_char
-      @peek = false
-      @lchar = read_char
+      if (ch = @lchar)
+        @lchar = nil
+        ch
+      else
+        read_char
+      end
     end
 
     def eof?
