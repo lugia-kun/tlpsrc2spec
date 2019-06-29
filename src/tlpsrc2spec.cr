@@ -46,6 +46,7 @@ module TLpsrc2spec
   LOCALSTATEDIR  = RPM["_localstatedir"]
   SYSCONFDIR     = RPM["_sysconfdir"]
   MANDIR         = RPM["_mandir"]
+  INFODIR        = RPM["_infodir"]
 
   OLDTEXMFDIR       = `kpsewhich -var-value TEXMFMAIN`.chomp
   OLDTEXMFDISTDIR   = `kpsewhich -var-value TEXMFDIST`.chomp
