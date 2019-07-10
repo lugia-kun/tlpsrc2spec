@@ -47,6 +47,8 @@ module TLpsrc2spec
   SYSCONFDIR     = RPM["_sysconfdir"]
   MANDIR         = RPM["_mandir"]
   INFODIR        = RPM["_infodir"]
+  PERL_VENDORLIB = RPM["perl_vendorlib"]
+  PKGCONFIGDIR   = File.join(LIBDIR, "pkgconfig")
 
   OLDTEXMFDIR       = `kpsewhich -var-value TEXMFMAIN`.chomp
   OLDTEXMFDISTDIR   = `kpsewhich -var-value TEXMFDIST`.chomp
@@ -194,6 +196,50 @@ module TLpsrc2spec
                    @obsoletes = ([] of String | RPM::Dependency),
                    @provides = ([] of String | RPM::Dependency),
                    @conflicts = ([] of String | RPM::Dependency))
+    end
+
+    private def add_dependency(list : Array(String | RPM::Dependency),
+                               dep : String | RPM::Dependency)
+      if dep.responds_to?(:name)
+        depname = dep.name
+      else
+        depname = dep
+      end
+      idx = list.index do |x|
+        if x.responds_to?(:name)
+          x.name == depname
+        else
+          x == depname
+        end
+      end
+      if idx
+        list[idx]
+      else
+        list << dep
+        dep
+      end
+    end
+
+    # Add Requires entry, without duplicating same entry.
+    #
+    # If given entry has been successfully added, returns `dep`
+    #
+    # If given entry is already there, returns it. Version and Flags
+    # field is ignored.
+    def add_require(dep)
+      add_dependency(@requires, dep)
+    end
+
+    def add_obsoletes(dep)
+      add_dependency(@obsoletes, dep)
+    end
+
+    def add_provides(dep)
+      add_dependency(@provides, dep)
+    end
+
+    def add_conflicts(dep)
+      add_dependency(@conflicts, dep)
     end
   end
 
