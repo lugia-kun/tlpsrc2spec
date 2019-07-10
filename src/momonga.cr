@@ -16,10 +16,41 @@ module TLpsrc2spec
     TEXLIVE_HOOKDIR = File.join(LOCALSTATEDIR, "run", "texlive")
     TEXMF           = [TEXMFDIR, TEXMFLOCALDIR, TEXMFVARDIR, TEXMFCONFIGDIR]
 
+    HOOK_FILES = {
+      File.join(TEXLIVE_HOOKDIR, "run-updmap") => "%{_updmap_hook}",
+    }
+
+    {% begin %}
+      # Reverse conversion table of exact path to rpmmacro name.
+      # These will be evaluated in first to last, so order is important.
+      RPM_PATHMACRO_TABLE = [
+        # {TEXMFDISTDIR, "%{_texmfdistdir}"},
+        {TEXMFVARDIR, "%{_texmfvardir}"},
+        {TEXMFCONFIGDIR, "%{_texmfconfigdir}"},
+        {TEXMFLOCALDIR, "%{_texmflocaldir}"},
+        {TEXMFDIR, "%{_texmfdir}"},
+        {% for key, val in HOOK_FILES %}
+          { {{key}}, {{val}} },
+        {% end %}
+        {TEXLIVE_HOOKDIR, "%{_texlive_hookdir}"},
+        {BINDIR, "%{_bindir}"},
+        {LIBDIR, "%{_libdir}"},
+        {INCLUDEDIR, "%{_includedir}"},
+        {SYSCONFDIR, "%{_sysconfdir}"},
+        {SHAREDSTATEDIR, "%{_sharedstatedir}"},
+        {MANDIR, "%{_mandir}"},
+        {INFODIR, "%{_infodir}"},
+        {DATADIR, "%{_datadir}"},
+        {PERL_VENDORLIB, "%{perl_vendorlib}"},
+      ]
+    {% end %}
+
     @tree : DirectoryTree
     @master : Package
     @all_license : Set(String) = Set(String).new
     @ts : RPM::Transaction = RPM::Transaction.new
+    @skipped_packages : Array(TLPDB::Package) = [] of TLPDB::Package
+    @removing_files : Array(String) = [] of String
 
     def initialize(*args)
       @tree = DirectoryTree.new
@@ -79,7 +110,7 @@ module TLpsrc2spec
                 end
               end
               io.pos = ps
-              StringCase.strcase_case_insensitive \
+              StringCase.strcase(case_insensitive: true) do
                 case io
                 when "COPYING", "LICENSE", "LICENCE",
                      "GUST-FONT-LICENSE", "GUST-FONT-LICENCE",
@@ -88,6 +119,7 @@ module TLpsrc2spec
                      "COPYRIGHT", "IPA_Font_License_Agreement"
                   candidates << x
                 end
+              end
             end
           end
         {% end %}
@@ -875,12 +907,64 @@ module TLpsrc2spec
       end
     end
 
+    macro make_tlpkg_modify_m(pkg)
+      TLPDB::Package.new(
+        {% for name, val in TLPDB::ALL_TAGS_DATA %}
+          {% n = val[:var_symbol] %}
+          {% c = val[:const_symbol] %}
+          {% t = val[:type] %}
+          {% if t == :exec %}
+            {% a = "[] of TLPDB::Execute" %}
+          {% elsif t == :files %}
+            {% a = "[] of TLPDB::Files" %}
+          {% elsif t == :postact %}
+            {% a = "[] of TLPDB::PostAction" %}
+          {% elsif t == :words %}
+            {% a = "[] of String" %}
+          {% else %}
+            {% a = "nil" %}
+          {% end %}
+          {% if pkg.is_a?(Var) %}
+            {% v = pkg.stringify %}
+          {% else %}
+            {% v = "(" + pkg.stringify + ")" %}
+          {% end %}
+          {% b = v + "." + n.id.stringify %}
+          {{n.id}}: {{yield(n, t, c, a.id, b.id)}},
+        {% end %}
+      )
+    end
+
+    def make_tlpkg_modify(pkg : TLPDB::Package, &block)
+      make_tlpkg_modify_m(pkg) do |n, t, c, a, b|
+        {% begin %}
+          yield({{n}}, {{t}}, TLPDB::Tag::{{c}}, {{a}}, {{b}})
+        {% end %}
+      end
+    end
+
+    macro tlpkg_modify_without(n, t, a, b, **args)
+      {% cond = false %}
+      {% if (nn = args[:names]) %}
+        {% cond = nn.any? { |x| x == n } %}
+      {% end %}
+      {% if !cond && (tt = args[:types]) %}
+        {% cond = tt.any? { |x| x == t } %}
+      {% end %}
+      {% if cond %}
+        {{a}}
+      {% else %}
+        {{b}}
+      {% end %}
+    end
+
     def make_solib_package(name : String, *,
                            libname : String = "lib" + name,
                            include_subdir : String | Array(String)? = name,
                            has_include : Bool = true,
                            tlpkg : TLPDB::Package | String? = name,
-                           has_static : Bool = false)
+                           has_static : Bool = true,
+                           pkgconfig : String? = name)
       if tlpkg.is_a?(String)
         tlpkg = app.tlpdb[tlpkg]
       end
@@ -892,7 +976,7 @@ module TLpsrc2spec
           group: "Development/Libraries",
           archdep: true,
           description: <<-EOD)
-          This package contains development files for #{name}.
+        This package contains development files for #{name}.
         EOD
         if has_include
           if include_subdir
@@ -909,9 +993,13 @@ module TLpsrc2spec
           end
         end
         if has_static
-          kpsedev.files << FileEntry.new(File.join(LIBDIR, "#{libname}*.a"))
+          kpsedev.files << FileEntry.new(File.join(LIBDIR, "#{libname}.a"))
         end
-        kpsedev.files << FileEntry.new(File.join(LIBDIR, "#{libname}*.so"))
+        kpsedev.files << FileEntry.new(File.join(LIBDIR, "#{libname}.so"))
+        if pkgconfig
+          kpsedev.files << FileEntry.new(File.join(LIBDIR, "pkgconfig",
+                                                   pkgconfig + ".pc"))
+        end
       end
       if kpselibname
         kpselib = Package.new(kpselibname,
@@ -919,29 +1007,22 @@ module TLpsrc2spec
           group: "System Environment/Libraries",
           archdep: true,
           description: <<-EOD)
-          This package contains library files of #{name}.
+        This package contains library files of #{name}.
         EOD
-        kpselib.files << FileEntry.new(File.join(LIBDIR, "#{libname}*.so.*"))
+        kpselib.files << FileEntry.new(File.join(LIBDIR, "#{libname}.so.*"))
       end
       if kpsedev && kpselib
         kpsedev.requires << "#{kpselib.name} == %{version}-%{release}"
       end
       xtlpkg = nil
       if tlpkg
-        # Create TLPDB package with no files.
-        {% begin %}
-          xtlpkg = TLPDB::Package.new(
-            {% for name, val in TLPDB::ALL_TAGS_DATA %}
-              {% n = val[:var_symbol] %}
-              {% t = val[:type] %}
-              {% if t != :files %}
-                {{n.id}}: tlpkg.{{n.id}},
-              {% else %}
-                {{n.id}}: [] of TLPDB::Files,
-              {% end %}
-            {% end %}
-          )
-        {% end %}
+        # Create TLPDB package with no files, no dependencies, no executes,
+        # and no postactions.
+        xtlpkg = make_tlpkg_modify_m(tlpkg) do |n, t, c, a, b|
+          tlpkg_modify_without({{n}}, {{t}}, {{a}}, {{b}},
+                               names: {:depends},
+                               types: {:files, :exec, :postact})
+        end
       end
       if kpsedev
         if xtlpkg
@@ -966,6 +1047,7 @@ module TLpsrc2spec
         pkgname = package_name_from_tlpdb_name(name)
         if pkgname.nil?
           log.debug { String.build { |x| x << "Skipping package " << name } }
+          @skipped_packages << tlpkg
           next
         end
         if (pkg = packages?(pkgname))
@@ -983,18 +1065,34 @@ module TLpsrc2spec
         add_package(Package.new(pkgname, tlpdb_pkgs: [tlpkg]))
       end
 
+      # Set flag whether any architecture depend files is contained
+      # or not.
+      each_package do |pkg|
+        tlpkgs = pkg.tlpdb_pkgs
+        pkg.archdep = tlpkgs.any? do |tlpkg|
+          !tlpkg.binfiles.empty?
+        end
+      end
+
+      ### After this archdep must be set. (if not set, defaults to `false`)
+
       # Create packages contains shared libraries, built by texlive.
       make_solib_package("kpathsea")
       ptexenc = make_solib_package("ptexenc", tlpkg: nil)
       ptexenc.each do |pkg|
         pkg.license = ["Modified BSD"]
       end
+      make_solib_package("texlua", libname: "libtexlua53", tlpkg: "luatex",
+                         include_subdir: "texlua53", pkgconfig: "texlua53")
+      make_solib_package("texluajit", tlpkg: "luatex")
+      make_solib_package("synctex")
 
       # Package texlive-filesystem is the bare texlive-filesystem
       # tree.
       tl_fs_pkg = Package.new("texlive-filesystem",
         summary: "TeX Live filesystem",
         license: ["GPL"],
+        archdep: false,
         group: "System Environment/Base",
         description: <<-EOD)
       Filesystem tree of TeX Live distribution.
@@ -1006,6 +1104,7 @@ module TLpsrc2spec
       tl_cleanup = Package.new("cleanup-packages-texlive",
         summary: "Cleanup texlive-related package",
         license: ["GPL"],
+        archdep: false,
         group: "System Environment/Base",
         description: <<-EOD)
       cleanup packages old TeX Live distribution.
@@ -1015,85 +1114,78 @@ module TLpsrc2spec
       stat = false
       each_package do |pkg|
         tlpkgs = pkg.tlpdb_pkgs
-
-        # Set flag whether any architecture depend files is contained
-        # or not.
-        pkg.archdep = tlpkgs.any? do |tlpkg|
-          binfiles = tlpkg.binfiles
-          binfiles && !binfiles.empty?
-        end
         archdepname = nil
 
         # Build Summary field.
         #
         # Summary field will be built from the first tlpkg data.
-        #
-        # The summary field text will be build even if some summary is
-        # already set, because we have some operations which has side
-        # effect (sets `archdepname`).
         if (tlpkg = tlpkgs.first?)
-          if pkg.archdep?
-            n = tlpkg.name.not_nil!
-            ni = n.byte_index('.'.ord)
-            archdepname = n[0...ni]
-            summary = String.build do |io|
-              io << "Binary files for TeX Live Package '"
-              io << archdepname
-              io << "'"
-            end
-            archdeppkg = @app.tlpdb[archdepname]?
-          else
-            if (sdesc = tlpkg.shortdesc)
-              summary = sdesc.gsub('%', "%%")
-            else
-              name = tlpkg.name.not_nil!
-              log.warn { "Package #{name} has no shortdesc" }
+          if pkg.summary.nil?
+            if pkg.archdep?
+              n = tlpkg.name.not_nil!
+              ni = n.byte_index('.'.ord)
+              archdepname = n[0...ni]
               summary = String.build do |io|
-                io << "TeX Live Package: " << name
+                io << "Binary files for TeX Live Package '"
+                io << archdepname
+                io << "'"
+              end
+              archdeppkg = @app.tlpdb[archdepname]?
+            else
+              if (sdesc = tlpkg.shortdesc)
+                summary = sdesc.gsub('%', "%%")
+              else
+                name = tlpkg.name.not_nil!
+                log.warn { "Package #{name} has no shortdesc" }
+                summary = String.build do |io|
+                  io << "TeX Live Package: " << name
+                end
               end
             end
-          end
-          if pkg.summary.nil?
             pkg.summary = summary
           end
         end
 
         # Build description field
-        #
-        # The description field text will be built even if some
-        # description is already set, because we may write some
-        # operations which has side effect.
-        description = String.build do |io|
-          if pkg.archdep?
-            io << "Binary files for TeX Live Package '"
-            io << archdepname.not_nil!
-            io << "'"
-          else
-            nlongdesc = tlpkgs.count do |tlpkg|
-              l = tlpkg.longdesc
-              l && l.size > 0
-            end
-            print_name = nlongdesc > 1
-            first = true
-            tlpkgs.each do |tlpkg|
-              longdesc = tlpkg.longdesc
-              if !longdesc || longdesc.size == 0
-                next
-              end
-              longdesc = longdesc.gsub('%', "%%")
-              if print_name
-                if !first
-                  io << "\n"
-                end
-                io << "(" << tlpkg.name << ")\n"
-              end
-              io << longdesc << "\n"
-              first = false
-            end
-          end
-        end
         if pkg.description.nil?
-          pkg.description = description
+          begin
+            pkg.description = String.build do |io|
+              if pkg.archdep?
+                io << "Binary files for TeX Live Package '"
+                io << archdepname.not_nil!
+                io << "'"
+              else
+                nlongdesc = tlpkgs.count do |tlpkg|
+                  l = tlpkg.longdesc
+                  l && l.size > 0
+                end
+                print_name = nlongdesc > 1
+                first = true
+                tlpkgs.each do |tlpkg|
+                  longdesc = tlpkg.longdesc
+                  if !longdesc || longdesc.size == 0
+                    next
+                  end
+                  longdesc = longdesc.gsub('%', "%%")
+                  if print_name
+                    if !first
+                      io << "\n"
+                    end
+                    io << "(" << tlpkg.name << ")\n"
+                  end
+                  io << longdesc << "\n"
+                  first = false
+                end
+              end
+            end
+          rescue e : NilAssertionError
+            if archdepname.nil?
+              log.error { "Please also set description for '#{pkg.name}' if you set own summary." }
+            else
+              raise e
+            end
+            stat = true
+          end
         end
 
         # Arch dependent packages (includes executable/library binary
@@ -1226,8 +1318,46 @@ module TLpsrc2spec
       xpath + "*"
     end
 
+    def make_require(pkg : TLpsrc2spec::Package,
+                     f : RPM::Sense = RPM::Sense::GREATER | RPM::Sense::EQUAL)
+      v = RPM::Version.new("%{version}")
+      RPM::Require.new(pkg.name, v, f, nil)
+    end
+
+    def create_biber_module_package(tlbiber : TLPDB::Package,
+                                    rpmbiber : TLpsrc2spec::Package)
+      perl_mod = packages?("perl-biber")
+      if perl_mod.nil?
+        nperl_mod = Package.new("perl-biber",
+                                group: "Development/Libraries",
+                                license: rpmbiber.license,
+                                summary: "Library files for TeX Live 'biber'",
+                                description: <<-EOD)
+        Perl library files of Biber.
+        EOD
+        nperl_mod.files << FileEntry.new(File.join(PERL_VENDORLIB, "Biber.pm"))
+        nperl_mod.files << FileEntry.new(File.join(PERL_VENDORLIB, "Biber"))
+        # For avoid adding Requires: %files, scripts.
+        nperl_mod.tlpdb_pkgs << make_tlpkg_modify_m(tlbiber) do |n, t, c, a, b|
+          tlpkg_modify_without({{n}}, {{t}}, {{a}}, {{b}},
+                               names: {:depends},
+                               types: {:files, :exec, :postact})
+        end
+        add_package(nperl_mod)
+        dep = make_require(nperl_mod)
+      else
+        dep = make_require(perl_mod)
+      end
+      old = rpmbiber.add_require dep
+      if dep != old && perl_mod
+        log.warn { "Really multiple package requires 'biber' perl Lib?" }
+      end
+    end
+
     def expand_tlpdb_files(pkg : TLpsrc2spec::Package, tlpkg : TLPDB::Package,
-                           tag : TLPDB::Tag, files : TLPDB::Files)
+                           tag : TLPDB::Tag, files : TLPDB::Files,
+                           *, exclude : Bool)
+      stat = false
       files.each do |pinfo|
         path = pinfo.path
         xpath = path
@@ -1244,8 +1374,25 @@ module TLpsrc2spec
             xpath = File.join(BINDIR, base)
             StringCase.strcase do
               case pathparser
-              when "man", "teckit_compile"
+              when "man", "teckit_compile", "tlmgr", "rungs"
                 skip = true
+              when "lualatex"
+                if !exclude
+                  luajitlatex = File.join(BINDIR, "luajitlatex")
+                  log.info {
+                    "Adding '#{luajitlatex}' to #{pkg.name} (TL: #{tlpkg.name})"
+                  }
+                  e = FileEntry.new(luajitlatex, tlpdb_tag: tag)
+                  pkg.files << e
+                end
+              when "biber"
+                if !exclude
+                  create_biber_module_package(tlpkg, pkg)
+                end
+              when "xdvi-xaw"
+                # They use XAW version of xdvi, but we have openmotif.
+                # So packaging motif version.
+                xpath = File.join(BINDIR, "xdvi-motif")
               end
             end
           when "texmf-dist/", "RELOC/"
@@ -1274,7 +1421,9 @@ module TLpsrc2spec
                    "web2c/texmfcnf.lua",
                    "web2c/updmap.cfg",
                    "xdvi/XDvi"
-                add_config_file(pkg, path)
+                if !exclude
+                  add_config_file(pkg, path)
+                end
               when "scripts/texlive/tlmgr.pl",
                    "scripts/texlive/tlmgrgui.pl",
                    "scripts/texlive/uninstall-win32.pl",
@@ -1287,12 +1436,26 @@ module TLpsrc2spec
                 skip = true
               when "doc/info/"
                 pos_save = pathparser.pos
-                if path.ends_with?(".info")
-                  xpath = add_info_file(pkg, pathparser.gets.not_nil!)
-                  log.debug { "Info page #{path} -> #{xpath}" }
+                StringCase.strcase do
+                  case pathparser
+                  when "dir"
+                    log.debug { "Skipping info/dir" }
+                    skip = true
+                  else
+                    pathparser.pos = pos_save
+                    if path.ends_with?(".info")
+                      xpath = add_info_file(pkg, pathparser.gets.not_nil!)
+                      log.debug { "Info page #{path} -> #{xpath}" }
+                    end
+                  end
                 end
               when "doc/man/"
                 pos_save = pathparser.pos
+                if !path.ends_with?(".pdf") && !path.ends_with?("Makefile")
+                  xpath = File.join(MANDIR, pathparser.gets.not_nil!) + "*"
+                  log.debug { "Man page #{path} -> #{xpath}" }
+                  pathparser.pos = pos_save
+                end
                 StringCase.strcase do
                   case pathparser
                   when "man1/install-tl.1",
@@ -1301,27 +1464,29 @@ module TLpsrc2spec
                        "man1/tlmgr.man1.pdf"
                     log.debug { "Skipping TLPKG file: #{path}" }
                     skip = true
-                  else
-                    if !path.ends_with?(".pdf")
-                      pathparser.pos = pos_save
-                      xpath = File.join(MANDIR, pathparser.gets.not_nil!) + "*"
-                      log.debug { "Man page #{path} -> #{xpath}" }
-                    end
                   end
                 end
               end
             end
-          when "install-tl", "install-tl.bat" # , "tlpkg/"
+          when ".mkisofsrc", "autorun.inf",
+               "install-tl", "install-tl-windows.bat",
+               "tl-tray-menu.exe" # , "tlpkg/"
             log.debug { "Skipping TLPKG file: #{path}" }
+            xpath = File.join(TEXMFDIR, path)
             skip = true
           when "tlpkg/"
+            xpath = File.join(TEXMFDIR, path)
             StringCase.strcase do
               case pathparser
               when "installer/", "tltcl/"
                 log.debug { "Skipping TLPKG file: #{path}" }
                 skip = true
-              else
-                xpath = File.join(TEXMFDIR, xpath)
+              when "gpg/"
+                # Who use GPG keys?
+                skip = true
+              when "README"
+                # "extra" archive does not include this file.
+                skip = true
               end
             end
           when "release-texlive.txt",
@@ -1332,6 +1497,8 @@ module TLpsrc2spec
             doc = true
           else
             log.error { "Unknown fullpath for: #{path}" }
+            skip = true
+            stat = true
           end
         end
 
@@ -1346,19 +1513,44 @@ module TLpsrc2spec
 
         if skip
           log.warn { "Skipping file: #{xpath}" }
+        end
+
+        if skip || exclude
+          # If an absolute path is set, remove it from installation tree.
+          if xpath.starts_with?('/')
+            @removing_files << xpath
+          end
           next
         end
 
         entry = FileEntry.new(xpath, doc: doc, tlpdb_tag: tag)
         pkg.files << entry
       end
+      stat
     end
 
     def add_fmt_files(pkg, fmts : Array(TLPDB::Execute::AddFormat))
       fmts.each do |fmt|
-        dir = File.join(TEXMFVARDIR, "web2c", fmt.engine)
-        pkg.files << FileEntry.new(File.join(dir, fmt.name + ".fmt"))
-        pkg.files << FileEntry.new(File.join(dir, fmt.name + ".log"))
+        engine = StringCase::Single.new(fmt.engine)
+        {% begin %}
+          {% mfa = [] of String %}
+          {% for mfengine in ["mf", "mflua", "mfluajit"] %}
+            {% mfa << mfengine %}
+            {% mfa << mfengine + "-nowin" %}
+          {% end %}
+          StringCase.strcase(complete: true) do
+            case engine
+            when {{mfa.splat}}
+              dir = File.join(TEXMFVARDIR, "web2c", "metafont")
+              pkg.files << FileEntry.new(File.join(dir, fmt.name + ".base"))
+              pkg.files << FileEntry.new(File.join(dir, fmt.name + ".log"))
+            else
+              dir = File.join(TEXMFVARDIR, "web2c", fmt.engine)
+              pkg.files << FileEntry.new(File.join(dir, fmt.name + ".fmt"))
+              pkg.files << FileEntry.new(File.join(dir, fmt.name + ".log"))
+            end
+          end
+        {% end %}
       end
     end
 
@@ -1366,37 +1558,44 @@ module TLpsrc2spec
       @tree.clear
 
       tl_fs_pkg = packages("texlive-filesystem")
+      miss = FileConfig.new(missingok: true)
       TEXMF.each do |texmfdir|
         node = @tree.mkdir(texmfdir)
         tl_fs_pkg.files << FileEntry.new(texmfdir, dir: true)
         node.package = tl_fs_pkg
 
-        miss = FileConfig.new(missingok: true)
-        ls_r = FileEntry.new(File.join(texmfdir, "ls-R"), config: miss)
-        ls_u = FileEntry.new(File.join(texmfdir, "%{ls_R_needs_update}"), config: miss)
-        tl_fs_pkg.files << ls_r
-        tl_fs_pkg.files << ls_u
+        if texmfdir != TEXMFLOCALDIR
+          ls_r = FileEntry.new(File.join(texmfdir, "ls-R"), config: miss)
+          ls_u = FileEntry.new(File.join(texmfdir, "%{ls_R_needs_update}"), config: miss)
+          tl_fs_pkg.files << ls_r
+          tl_fs_pkg.files << ls_u
+        end
+      end
+      tl_fs_pkg.files << FileEntry.new(TEXLIVE_HOOKDIR, dir: true)
+      HOOK_FILES.each_key do |hook|
+        tl_fs_pkg.files << FileEntry.new(hook, config: miss)
       end
 
       log.info "Creating package file entries"
+      stat = false
       each_package do |pkg|
         pkg.tlpdb_pkgs.each do |tlpkg|
           {% for name, val in TLPDB::ALL_TAGS_DATA %}
             {% if val[:type] == :files %}
-              {% begin %}
-                {% if val[:var_symbol] == :srcfiles %}
-                  if tlpkg.runfiles.empty?
-                {% end %}
-                filessets = tlpkg.{{val[:var_symbol].id}}
-                filessets.each do |files|
-                  expand_tlpdb_files(pkg, tlpkg,
-                                     TLPDB::Tag::{{val[:const_symbol].id}},
-                                     files)
+              exclude = false
+              {% if val[:var_symbol] == :srcfiles %}
+                # Include source files when there are no run files.
+                if !tlpkg.runfiles.empty?
+                  exclude = true
                 end
-                {% if val[:var_symbol] == :srcfiles %}
-                  end
-                {% end %}
               {% end %}
+              filessets = tlpkg.{{val[:var_symbol].id}}
+              filessets.each do |files|
+                ns = expand_tlpdb_files(pkg, tlpkg,
+                                        TLPDB::Tag::{{val[:const_symbol].id}},
+                                        files, exclude: exclude)
+                stat = stat || ns
+              end
             {% end %}
           {% end %}
 
@@ -1419,6 +1618,53 @@ module TLpsrc2spec
             e = @tree.insert(entry.path)
           end
           e.package = pkg
+        end
+      end
+      # Assist removing files excluded packages, with marking their
+      # files to be excluded (but not all though...)
+      @skipped_packages.each do |skipped_pkg|
+        {% for name, val in TLPDB::ALL_TAGS_DATA %}
+          {% if val[:type] == :files %}
+            filessets = skipped_pkg.{{val[:var_symbol].id}}
+            filessets.each do |files|
+              ns = expand_tlpdb_files(tl_fs_pkg, skipped_pkg,
+                                      TLPDB::Tag::{{val[:const_symbol].id}},
+                                      files, exclude: true)
+              stat = stat || ns
+            end
+          {% end %}
+        {% end %}
+      end
+      if stat
+        log.fatal { "Please check previous error" }
+        exit 1
+      end
+
+      log.info "Adding additoinal files"
+      begin
+        infra = packages("texlive-texlive-infra")
+        tlpdb = File.join(TEXMFDIR, "tlpkg", "texlive.tlpdb")
+        infra.files << FileEntry.new(tlpdb)
+
+        xdvi = packages("texlive-xdvi")
+        desktop = File.join(DATADIR, "applications", "xdvi.desktop")
+        xdvi.files << FileEntry.new(desktop)
+
+        asy = packages("texlive-asymptote")
+        [
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.ascii"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/index.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section1.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section2.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section3.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section4.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section5.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section6.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section7.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section8.html"),
+          File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section9.html"),
+        ].each do |path|
+          asy.files << FileEntry.new(path, doc: true)
         end
       end
 
@@ -1458,30 +1704,55 @@ module TLpsrc2spec
           end
         end
       end
-      # Manual directories
-      [
-        TEXLIVE_HOOKDIR,
-      ].each do |path|
-        tl_fs_pkg.files << FileEntry.new(path, dir: true)
-        node = @tree.mkdir(path)
-        node.package = tl_fs_pkg
-      end
 
       log.info "Directory compacting"
       dirs = [] of DirectoryNode
       filesystem_pkg = Package.new("filesystem")
       # RPM.transaction do |ts|
       begin
-        iter = @ts.init_iterator(RPM::DbiTag::Name, "filesystem")
-        begin
-          rpmfspkg = iter.first
+        rpmfspkgs = {} of String => RPM::Package
+
+        [
+          PREFIX, DATADIR, BINDIR, LIBDIR, INCLUDEDIR,
+          SHAREDSTATEDIR, LOCALSTATEDIR, SYSCONFDIR,
+          MANDIR, INFODIR, PERL_VENDORLIB, PKGCONFIGDIR,
+        ].each do |dir|
+          iter = @ts.init_iterator(RPM::DbiTag::BaseNames, dir)
+          begin
+            iter.each do |pkg|
+              name = pkg.name
+              if !rpmfspkgs.has_key?(name)
+                rpmfspkgs[name] = pkg
+              end
+            end
+          ensure
+            iter.finalize
+          end
+        end
+
+        rpmfspkgs.each do |name, rpmfspkg|
           rpmfspkg.files.each do |entry|
             if (ent = @tree[entry.path]?)
               ent.package = filesystem_pkg
             end
           end
-        ensure
-          iter.finalize
+        end
+      end
+
+      %w[filesystem perl pkgconfig].each do |file_system_base_pkg|
+        # RPM.transaction do |ts|
+        begin
+          iter = @ts.init_iterator(RPM::DbiTag::Name, file_system_base_pkg)
+          begin
+            rpmfspkg = iter.first
+            rpmfspkg.files.each do |entry|
+              if (ent = @tree[entry.path]?)
+                ent.package = filesystem_pkg
+              end
+            end
+          ensure
+            iter.finalize
+          end
         end
       end
 
@@ -1534,13 +1805,18 @@ module TLpsrc2spec
         end
       end
 
+      log.info { "Adding directory hierarchy requires..." }
       @tree.each_entry_breadth do |entry|
         pkg = entry.package
         if pkg && pkg != tl_fs_pkg && (pkg = packages?(pkg.name))
           while (parent = entry.parent) != entry
             if (dirpkg = parent.package)
-              if dirpkg != pkg && packages?(dirpkg)
-                dirpkg.requires << pkg.name
+              if dirpkg != pkg && packages?(dirpkg.name)
+                req = make_require(dirpkg)
+                dep = pkg.add_require(req)
+                if req == dep
+                  log.info { "'#{pkg.name}' requires '#{dirpkg.name}'" }
+                end
               end
             end
             entry = parent
@@ -1634,14 +1910,14 @@ module TLpsrc2spec
       tl_fs_pkg = packages("texlive-filesystem")
 
       # Add filesystem package as dependency if it contains a file.
-      each_package do |pkg|
-        if pkg == tl_fs_pkg
-          next
-        end
-        if pkg.files.size > 0
-          pkg.requires << "#{tl_fs_pkg.name} >= %{version}"
-        end
-      end
+      # each_package do |pkg|
+      #   if pkg == tl_fs_pkg
+      #     next
+      #   end
+      #   if pkg.files.size > 0
+      #     pkg.add_require make_require(tl_fs_pkg)
+      #   end
+      # end
 
       deptree = DependencyTree.new(app)
       each_package do |pkg|
@@ -1656,7 +1932,7 @@ module TLpsrc2spec
       deptree.db.each_value do |node|
         from = node.package
         node.depends.each do |dep|
-          from.requires << "#{dep.name} >= %{version}"
+          from.add_require make_require(dep)
         end
       end
 
@@ -2207,7 +2483,7 @@ module TLpsrc2spec
                        pname == x
                      end
                     log.info { "  * #{pname}" }
-                    newtljap.requires << "#{pname} >= %{version}"
+                    newtljap.add_require make_require(provider)
                   end
                 end
               elsif (whatprovides = packages?(name))
@@ -2215,7 +2491,7 @@ module TLpsrc2spec
                      name == x
                    end
                   log.info { "  * #{name}" }
-                  newtljap.requires << "#{name} >= %{version}"
+                  newtljap.add_require make_require(whatprovides)
                 end
               elsif !name.starts_with?("rpmlib")
                 log.warn { "  ... Nothing found which provides #{name}" }
@@ -2267,31 +2543,68 @@ module TLpsrc2spec
       @master.license = license.to_a
     end
 
+    def to_path_with_rpm(path : String)
+      RPM_PATHMACRO_TABLE.each do |mfpath, repl|
+        if path.starts_with?(mfpath)
+          path = path.sub(mfpath, repl)
+          break
+        end
+      end
+      path
+    end
+
     def adjust_file_path
+      log.info { "Converting paths to use RPM macros" }
       each_package do |pkg|
         pkg.files.each do |entry|
-          path = entry.path
-          [
-            # {TEXMFDISTDIR, "%{_texmfdistdir}"},
-            {TEXMFVARDIR, "%{_texmfvardir}"},
-            {TEXMFCONFIGDIR, "%{_texmfconfigdir}"},
-            {TEXMFLOCALDIR, "%{_texmflocaldir}"},
-            {TEXMFDIR, "%{_texmfdir}"},
-            {TEXLIVE_HOOKDIR, "%{_texlive_hookdir}"},
-            {BINDIR, "%{_bindir}"},
-            {LIBDIR, "%{_libdir}"},
-            {INCLUDEDIR, "%{_includedir}"},
-            {SYSCONFDIR, "%{_sysconfdir}"},
-            {SHAREDSTATEDIR, "%{_sharedstatedir}"},
-            {MANDIR, "%{_mandir}"},
-            {INFODIR, "%{_infodir}"},
-            {DATADIR, "%{_datadir}"},
-          ].each do |mfpath, repl|
-            if path.starts_with?(mfpath)
-              entry.path = path.sub(mfpath, repl)
-              break
+          entry.path = to_path_with_rpm(entry.path)
+        end
+      end
+      if !@removing_files.empty?
+        tl_fs_pkg = packages?("texlive-filesystem").not_nil!
+        has_removing = false
+        @removing_files.each do |path|
+          node = @tree[path]?
+          if !node
+            has_removing = true
+            node = @tree.insert(path)
+          end
+        end
+        if has_removing
+          isc = String.build do |io|
+            first = false
+            if (script = tl_fs_pkg.install_script)
+              if script.size > 0
+                io << script
+                first = true
+              end
+            end
+            @tree.each_entry_breadth do |entry|
+              # removing
+              if entry.package.nil?
+                parent = entry.parent
+                if parent == entry
+                  raise "Really remove root-directory?"
+                end
+                if parent.package.nil?
+                  # Already handled parent directory.
+                  next
+                end
+                if first
+                  io << "\n"
+                  first = false
+                end
+                io << "%{__rm}"
+                if entry.is_a?(DirectoryNode)
+                  io << " -rf"
+                else
+                  io << " -f"
+                end
+                io << " %{buildroot}" << to_path_with_rpm(entry.path) << "\n"
+              end
             end
           end
+          tl_fs_pkg.install_script = isc
         end
       end
     end
@@ -2403,11 +2716,35 @@ module TLpsrc2spec
       end
     end
 
+    def add_format_script(target)
+      execs = [] of TLPDB::Execute::AddFormat
+      target.tlpdb_pkgs.each do |tlpkg|
+        tlpkg.executes.each do |ex|
+          if ex.is_a?(TLPDB::Execute::AddFormat)
+            execs << ex
+          end
+        end
+      end
+      # if execs.any? { |exe| exe.mode == "disabled" }
+      #   target.install_script = String.build do |str|
+      #     if target.install_script
+      #       str << target.install_script
+      #     end
+      #     execs.each do |exe|
+      #       if exe.mode == "disabled"
+      #         str << "%{_enable_format " << exe.name << "}\n"
+      #       end
+      #     end
+      #   end
+      # end
+    end
+
     def add_script
       fspkg = packages("texlive-filesystem")
       each_package do |pkg|
         add_mktexlsr_script(pkg, fspkg)
         add_updmap_script(pkg)
+        add_format_script(pkg)
       end
     end
 
