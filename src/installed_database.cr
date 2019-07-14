@@ -114,10 +114,8 @@ module TLpsrc2spec
 
     private def build_pkgs
       @log.debug { "Start building installed packages table" }
-      @base.each do |spec|
-        spec.packages.each do |pkg|
-          add_pkg(pkg)
-        end
+      each_base_package do |pkg|
+        add_pkg(pkg)
       end
       @log.debug { "Searching texmf directory" }
       [OLDTEXMFDISTDIR, OLDTEXMFDIR, OLDTEXMFCONFIGDIR, OLDTEXMFVARDIR].each do |dir|

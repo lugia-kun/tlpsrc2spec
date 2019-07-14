@@ -230,11 +230,11 @@ module TLpsrc2spec
       add_dependency(@requires, dep)
     end
 
-    def add_obsoletes(dep)
+    def add_obsolete(dep)
       add_dependency(@obsoletes, dep)
     end
 
-    def add_provides(dep)
+    def add_provide(dep)
       add_dependency(@provides, dep)
     end
 
