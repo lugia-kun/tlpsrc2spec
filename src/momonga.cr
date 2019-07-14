@@ -179,7 +179,7 @@ module TLpsrc2spec
             return "CC-BY-SA"
           when "berenisadf"
             # See https://ctan.org/tex-archive/fonts/berenisadf
-            return ["GPLv2", "see \"COPYING\", LPPL"]
+            return ["GPLv2", "see \"COPYING\"", "LPPL"]
             # when "blacklettert1"
             #  # See https://ctan.org/tex-archive/fonts/gothic/blacklettert1
             #  # It seems slightly different to LPPL 1.2.
@@ -1944,13 +1944,64 @@ module TLpsrc2spec
     end
 
     # Make obsolete object from RPM::Package
-    def make_obsolete(rpmpkg : RPM::Package,
-                      f : RPM::Sense = RPM::Sense::LESS | RPM::Sense::EQUAL)
-      v = rpmpkg[RPM::Tag::Version].as(String)
-      r = rpmpkg[RPM::Tag::Release].as(String).sub(/\.mo\d+$/, "")
+    def make_obsolete(name : String, epoch : UInt32 | Int32?,
+                      version : String, release : String?,
+                      flag : RPM::Sense = RPM::Sense::LESS,
+                      *, increment_release : Bool = false)
+      if release
+        d = 0
+        i = 0
+        if increment_release
+          # If release is like "0.1m.mo8", let `d` to `0`, and set
+          # incremented release to `1m`.
+          release.each_char do |ch|
+            {% begin %}
+              case ch
+                  {% for ch in %w[0 1 2 3 4 5 6 7 8 9] %}
+                  when '{{ch.id}}'
+                    d = d * 10 + {{ch.id}}
+                    i += 1
+                  {% end %}
+              else
+                break
+              end
+            {% end %}
+          end
+        end
+        if i > 0
+          release = "#{d + 1}m"
+        else
+          release = release.sub(/\.mo\d+/, "")
+        end
+        v = RPM::Version.new(version, release, epoch)
+      else
+        flag |= RPM::Sense::EQUAL
+        if epoch
+          v = RPM::Version.new(version, epoch)
+        else
+          v = RPM::Version.new(version)
+        end
+      end
+      RPM::Obsolete.new(name, v, flag, nil)
+    end
+
+    def make_obsolete(rpmpkg : RPM::Package, f : RPM::Sense = RPM::Sense::LESS,
+                      *, increment_release : Bool = true)
+      n = rpmpkg.name
       e = rpmpkg[RPM::Tag::Epoch].as(UInt32?)
-      version = RPM::Version.new(v, r, e)
-      RPM::Obsolete.new(rpmpkg.name, version, f, nil)
+      v = rpmpkg[RPM::Tag::Version].as(String)
+      r = rpmpkg[RPM::Tag::Release].as(String)
+      make_obsolete(n, e, v, r, f, increment_release: increment_release)
+    end
+
+    def make_obsolete(dep : RPM::Dependency, f : RPM::Sense? = nil,
+                      *, increment_release : Bool = false)
+      n = dep.name
+      e = dep.version.e
+      v = dep.version.v
+      r = dep.version.r
+      f ||= dep.flags
+      make_obsolete(n, e, v, r, f, increment_release: increment_release)
     end
 
     def obsolete_old_packages
@@ -2354,24 +2405,25 @@ module TLpsrc2spec
                     end
                   end
                 end
-                pkg.obsoletes << obso
+                pkg.add_obsolete(obso)
               end
             end
             rpmpkg.obsoletes.each do |obso|
               name = obso.name
               next if name == pkg.name
               next if pkg.obsoletes.any? do |x|
-                        if x.responds_to?(:name)
-                          x.name == name
-                        else
-                          x == name
-                        end
-                      end
+                if x.responds_to?(:name)
+                  x.name == name
+                else
+                  x == name
+                end
+              end
+              obso = make_obsolete(obso)
               dnevr = obso.to_dnevr
               log.info do
                 " ... obsoletes: #{dnevr} (by package #{rpmpkg.name})"
               end
-              pkg.obsoletes << obso
+              pkg.add_obsolete(obso)
             end
           end
         end
@@ -2390,7 +2442,7 @@ module TLpsrc2spec
       end
 
       obso_all = RPM::Obsolete.new("texlive-all",
-        RPM::Version.new("2010-28m"),
+        RPM::Version.new("2010-3m"),
         RPM::Sense::LESS, nil)
       obsolete_if_not("texlive-scheme-full", obso_all, log: true)
     end
@@ -2453,7 +2505,7 @@ module TLpsrc2spec
         end
         obso = make_obsolete(pkg)
         log.warn { "Nothing obsoletes #{obso.name}-#{obso.version.to_vre}" }
-        cleanup.obsoletes << obso
+        cleanup.add_obsolete(obso)
       end
 
       log.info { "Reverse obsoletion info" }
