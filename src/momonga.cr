@@ -998,7 +998,7 @@ module TLpsrc2spec
         kpsedev.files << FileEntry.new(File.join(LIBDIR, "#{libname}.so"))
         if pkgconfig
           kpsedev.files << FileEntry.new(File.join(LIBDIR, "pkgconfig",
-                                                   pkgconfig + ".pc"))
+            pkgconfig + ".pc"))
         end
       end
       if kpselibname
@@ -1020,8 +1020,8 @@ module TLpsrc2spec
         # and no postactions.
         xtlpkg = make_tlpkg_modify_m(tlpkg) do |n, t, c, a, b|
           tlpkg_modify_without({{n}}, {{t}}, {{a}}, {{b}},
-                               names: {:depends},
-                               types: {:files, :exec, :postact})
+            names: {:depends},
+            types: {:files, :exec, :postact})
         end
       end
       if kpsedev
@@ -1074,7 +1074,7 @@ module TLpsrc2spec
         end
       end
 
-      ### After this archdep must be set. (if not set, defaults to `false`)
+      # ## After this archdep must be set. (if not set, defaults to `false`)
 
       # Create packages contains shared libraries, built by texlive.
       make_solib_package("kpathsea")
@@ -1083,7 +1083,7 @@ module TLpsrc2spec
         pkg.license = ["Modified BSD"]
       end
       make_solib_package("texlua", libname: "libtexlua53", tlpkg: "luatex",
-                         include_subdir: "texlua53", pkgconfig: "texlua53")
+        include_subdir: "texlua53", pkgconfig: "texlua53")
       make_solib_package("texluajit", tlpkg: "luatex")
       make_solib_package("synctex")
 
@@ -1329,10 +1329,10 @@ module TLpsrc2spec
       perl_mod = packages?("perl-biber")
       if perl_mod.nil?
         nperl_mod = Package.new("perl-biber",
-                                group: "Development/Libraries",
-                                license: rpmbiber.license,
-                                summary: "Library files for TeX Live 'biber'",
-                                description: <<-EOD)
+          group: "Development/Libraries",
+          license: rpmbiber.license,
+          summary: "Library files for TeX Live 'biber'",
+          description: <<-EOD)
         Perl library files of Biber.
         EOD
         nperl_mod.files << FileEntry.new(File.join(PERL_VENDORLIB, "Biber.pm"))
@@ -1340,8 +1340,8 @@ module TLpsrc2spec
         # For avoid adding Requires: %files, scripts.
         nperl_mod.tlpdb_pkgs << make_tlpkg_modify_m(tlbiber) do |n, t, c, a, b|
           tlpkg_modify_without({{n}}, {{t}}, {{a}}, {{b}},
-                               names: {:depends},
-                               types: {:files, :exec, :postact})
+            names: {:depends},
+            types: {:files, :exec, :postact})
         end
         add_package(nperl_mod)
         dep = make_require(nperl_mod)
@@ -2412,12 +2412,12 @@ module TLpsrc2spec
               name = obso.name
               next if name == pkg.name
               next if pkg.obsoletes.any? do |x|
-                if x.responds_to?(:name)
-                  x.name == name
-                else
-                  x == name
-                end
-              end
+                        if x.responds_to?(:name)
+                          x.name == name
+                        else
+                          x == name
+                        end
+                      end
               obso = make_obsolete(obso)
               dnevr = obso.to_dnevr
               log.info do
