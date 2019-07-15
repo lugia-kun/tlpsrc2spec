@@ -198,25 +198,58 @@ module TLpsrc2spec
                    @conflicts = ([] of String | RPM::Dependency))
     end
 
-    private def add_dependency(list : Array(String | RPM::Dependency),
-                               dep : String | RPM::Dependency)
-      if dep.responds_to?(:name)
-        depname = dep.name
-      else
-        depname = dep
-      end
-      idx = list.index do |x|
-        if x.responds_to?(:name)
-          x.name == depname
-        else
-          x == depname
+    private def dependency_tuple(dep : String)
+      { name: dep, version: nil, sense: RPM::Sense::ANY }
+    end
+
+    private def dependency_tuple(dep : RPM::Dependency)
+      { name: dep.name, version: dep.version, sense: dep.flags }
+    end
+
+    # If yield result is true (truethy), the current index will be
+    # replaced by dep on first, and removed for others.
+    #
+    # If yield result is nil, the current index will be removed.
+    #
+    # returns true if item(s) has been replaced, false if not.
+    private def replace_dependency(list : Array(String | RPM::Dependency),
+                                   dep : String | RPM::Dependency, &block)
+      a = dependency_tuple(dep)
+      s = 0
+      e = list.size
+      replaced = false
+      while s < list.size
+        list.each_index(start: s, count: e) do |i|
+          r = yield(a, dependency_tuple(list.unsafe_fetch(i)), i)
+          if r
+            if !replaced
+              list[i] = dep
+              replaced = true
+            else
+              list.delete_at(i)
+              s = i
+              break
+            end
+          elsif r.nil?
+            list.delete_at(i)
+            s = i
+            break
+          end
+          s = i + 1
         end
       end
-      if idx
-        list[idx]
-      else
+      replaced
+    end
+
+    private def add_dependency(list : Array(String | RPM::Dependency),
+                               dep : String | RPM::Dependency, &block)
+      if !replace_dependency(list, dep) do |a, b, i|
+          yield(a, b, i)
+        end
         list << dep
-        dep
+        false
+      else
+        true
       end
     end
 
@@ -226,20 +259,36 @@ module TLpsrc2spec
     #
     # If given entry is already there, returns it. Version and Flags
     # field is ignored.
+    def add_require(dep, &block)
+      add_dependency(@requires, dep) { |a, b, i| yield(a, b, i) }
+    end
+
+    def add_obsolete(dep, &block)
+      add_dependency(@obsoletes, dep) { |a, b, i| yield(a, b, i) }
+    end
+
+    def add_provide(dep, &block)
+      add_dependency(@provides, dep) { |a, b, i| yield(a, b, i) }
+    end
+
+    def add_conflict(dep, &block)
+      add_dependency(@conflicts, dep) { |a, b, i| yield(a, b, i) }
+    end
+
     def add_require(dep)
-      add_dependency(@requires, dep)
+      add_require(dep) { |a, b| a[:name] == b[:name] }
     end
 
     def add_obsolete(dep)
-      add_dependency(@obsoletes, dep)
+      add_obsolete(dep) { |a, b| a[:name] == b[:name] }
     end
 
     def add_provide(dep)
-      add_dependency(@provides, dep)
+      add_provide(dep) { |a, b| a[:name] == b[:name] }
     end
 
-    def add_conflicts(dep)
-      add_dependency(@conflicts, dep)
+    def add_conflict(dep)
+      add_conflict(dep) { |a, b| a[:name] == b[:name] }
     end
   end
 

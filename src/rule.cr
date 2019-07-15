@@ -88,8 +88,8 @@ module TLpsrc2spec
       else
         dep = make_obsolete(obsolescent)
       end
-      obsolete_if_not(obsoleter, dep, log: log) do |n, s, v, r|
-        yield n, s, v, r
+      obsolete_if_not(obsoleter, dep, log: log) do |a, b, i|
+        yield a, b, i
       end
     end
 
@@ -103,26 +103,16 @@ module TLpsrc2spec
     def obsolete_if_not(obsoleter : TLpsrc2spec::Package,
                         obsolescent : RPM::Dependency,
                         *, log : Bool = false, &block)
-      if !obsoleter.obsoletes.any? do |x|
-           if x.is_a?(RPM::Dependency)
-             name = x.name
-             vers = x.version.v
-             rele = x.version.r
-             sens = x.flags
-           else
-             name = x.as(String)
-             vers = nil
-             rele = nil
-             sens = RPM::Sense::ANY
-           end
-
-           yield name, sens, vers, rele
-         end
-        if log
-          self.log.info { "#{obsoleter.name} obsoletes #{obsolescent.name}" }
+      r = false
+      x = obsoleter.add_obsolete(obsolescent) do |a, b, i|
+        r = yield(a, b, i)
+        if r
+          break r
         end
-
-        obsoleter.obsoletes << obsolescent
+        false
+      end
+      if x && log
+        self.log.info { "#{obsoleter.name} obsoletes #{obsolescent.name}" }
         obsolescent
       else
         nil
@@ -151,8 +141,8 @@ module TLpsrc2spec
                         obsolescent : String | RPM::Dependency, **opts,
                         &block)
       if (pkg = packages?(obsoleter))
-        obsolete_if_not(pkg, obsolescent, **opts) do |n, s, v, r|
-          yield n, s, v, r
+        obsolete_if_not(pkg, obsolescent, **opts) do |a, b, i|
+          yield a, b, i
         end
       else
         raise ObsoleterNotFound.new(obsoleter)
@@ -162,20 +152,14 @@ module TLpsrc2spec
     def obsolete_if_not(obsoleter : TLpsrc2spec::Package,
                         obsolescent : String, **opts, &block)
       o = RPM::Obsolete.new(obsolcescent)
-      obsolete_if_not(obsoleter, o, **opts) do |n, s, v, r|
-        yield n, s, v, r
+      obsolete_if_not(obsoleter, o, **opts) do |a, b, i|
+        yield a, b, i
       end
     end
 
-    def obsolete_if_not(obsoleter, obsolescent : RPM::Dependency | RPM::Package, **opts)
-      obsolete_if_not(obsoleter, obsolescent, **opts) do |n, s, v, r|
-        n == obsolescent.name
-      end
-    end
-
-    def obsolete_if_not(obsoleter, obsolescent : String, **opts)
-      obsolete_if_not(obsoleter, obsolescent, **opts) do |n, s, v, r|
-        n == obsolescent
+    def obsolete_if_not(obsoleter, obsolescent, **opts)
+      obsolete_if_not(obsoleter, obsolescent, **opts) do |a, b, i|
+        a[:name] == b[:name]
       end
     end
 
