@@ -1110,6 +1110,14 @@ module TLpsrc2spec
       cleanup packages old TeX Live distribution.
       EOD
       add_package(tl_cleanup)
+      if (old_cleanup = installed_db.package?(tl_cleanup.name))
+        log.warn { "Adding existing #{tl_cleanup.name} obsoletes..." }
+        old_cleanup.each_value do |pkg|
+          pkg.obsoletes.each do |obso|
+            tl_cleanup.add_obsolete(obso)
+          end
+        end
+      end
 
       stat = false
       each_package do |pkg|
