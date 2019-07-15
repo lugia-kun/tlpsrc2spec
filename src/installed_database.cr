@@ -201,6 +201,16 @@ module TLpsrc2spec
       end
     end
 
+    def package?(name)
+      build_pkgs_if_needed
+      @pkgs[name]?
+    end
+
+    def package(name)
+      build_pkgs_if_needed
+      @pkgs[name]
+    end
+
     def clear
       @files.clear
       @filepaths.clear
