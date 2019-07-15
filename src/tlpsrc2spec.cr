@@ -151,11 +151,12 @@ module TLpsrc2spec
     property? doc : Bool
     property? docdir : Bool
     property? dir : Bool
+    property? ghost : Bool
     property tlpdb_tag : TLPDB::Tag
 
     def initialize(@path, *, @attr = DEFAULT_ATTRIBUTE,
                    @config = nil, @verify = nil, @doc = false,
-                   @docdir = false, @dir = false,
+                   @docdir = false, @dir = false, @ghost = false,
                    @tlpdb_tag = TLPDB::Tag::RUNFILES)
     end
   end

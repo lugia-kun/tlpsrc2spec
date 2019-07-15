@@ -283,6 +283,9 @@ module TLpsrc2spec
               builder << "\n"
               last_attr = entry.attr
             end
+            if entry.ghost?
+              builder << "%ghost "
+            end
             if entry.config
               builder << entry.config << " "
             end
