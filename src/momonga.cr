@@ -1401,6 +1401,12 @@ module TLpsrc2spec
                 # They use XAW version of xdvi, but we have openmotif.
                 # So packaging motif version.
                 xpath = File.join(BINDIR, "xdvi-motif")
+              when "xindy.mem"
+                # Use %{_libdir}/xindy/xindy.mem as xindy memory file.
+                xpath = File.join(LIBDIR, "xindy", "xindy.mem")
+              when "xindy.run"
+                # Force use %{_bindir}/clisp directly
+                skip = true
               end
             end
           when "texmf-dist/", "RELOC/"
