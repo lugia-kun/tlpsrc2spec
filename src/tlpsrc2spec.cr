@@ -41,6 +41,7 @@ module TLpsrc2spec
   DATADIR        = RPM["_datadir"]
   BINDIR         = RPM["_bindir"]
   LIBDIR         = RPM["_libdir"]
+  LIBEXECDIR     = RPM["_libexecdir"]
   INCLUDEDIR     = RPM["_includedir"]
   SHAREDSTATEDIR = RPM["_sharedstatedir"]
   LOCALSTATEDIR  = RPM["_localstatedir"]
