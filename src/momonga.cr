@@ -34,6 +34,7 @@ module TLpsrc2spec
         {% end %}
         {TEXLIVE_HOOKDIR, "%{_texlive_hookdir}"},
         {BINDIR, "%{_bindir}"},
+        {LIBEXECDIR, "%{_libexecdir}"},
         {LIBDIR, "%{_libdir}"},
         {INCLUDEDIR, "%{_includedir}"},
         {SYSCONFDIR, "%{_sysconfdir}"},
@@ -1403,7 +1404,7 @@ module TLpsrc2spec
                 xpath = File.join(BINDIR, "xdvi-motif")
               when "xindy.mem"
                 # Use %{_libdir}/xindy/xindy.mem as xindy memory file.
-                xpath = File.join(LIBDIR, "xindy", "xindy.mem")
+                xpath = File.join(LIBEXECDIR, "xindy", "xindy.mem")
               when "xindy.run"
                 # Force use %{_bindir}/clisp directly
                 skip = true
@@ -1579,8 +1580,8 @@ module TLpsrc2spec
         node.package = tl_fs_pkg
 
         if texmfdir != TEXMFLOCALDIR
-          ls_r = FileEntry.new(File.join(texmfdir, "ls-R"), config: miss)
-          ls_u = FileEntry.new(File.join(texmfdir, "%{ls_R_needs_update}"), config: miss)
+          ls_r = FileEntry.new(File.join(texmfdir, "ls-R"), ghost: true)
+          ls_u = FileEntry.new(File.join(texmfdir, "%{ls_R_needs_update}"), ghost: true)
           tl_fs_pkg.files << ls_r
           tl_fs_pkg.files << ls_u
         end
