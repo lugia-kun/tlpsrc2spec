@@ -1588,7 +1588,7 @@ module TLpsrc2spec
       end
       tl_fs_pkg.files << FileEntry.new(TEXLIVE_HOOKDIR, dir: true)
       HOOK_FILES.each_key do |hook|
-        tl_fs_pkg.files << FileEntry.new(hook, config: miss)
+        tl_fs_pkg.files << FileEntry.new(hook, ghost: true)
       end
 
       log.info "Creating package file entries"
