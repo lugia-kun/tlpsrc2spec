@@ -2,6 +2,8 @@ require "./strcase"
 
 module TLpsrc2spec
   class MomongaRule < Rule
+    VERSION = "2019-2m"
+
     class Package < TLpsrc2spec::Package
       def group
         super || "Applications/Publishing"
