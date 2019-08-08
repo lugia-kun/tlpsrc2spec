@@ -201,11 +201,11 @@ module TLpsrc2spec
     end
 
     private def dependency_tuple(dep : String)
-      { name: dep, version: nil, sense: RPM::Sense::ANY }
+      {name: dep, version: nil, sense: RPM::Sense::ANY}
     end
 
     private def dependency_tuple(dep : RPM::Dependency)
-      { name: dep.name, version: dep.version, sense: dep.flags }
+      {name: dep.name, version: dep.version, sense: dep.flags}
     end
 
     # If yield result is true (truethy), the current index will be
@@ -246,8 +246,8 @@ module TLpsrc2spec
     private def add_dependency(list : Array(String | RPM::Dependency),
                                dep : String | RPM::Dependency, &block)
       if !replace_dependency(list, dep) do |a, b, i|
-          yield(a, b, i)
-        end
+           yield(a, b, i)
+         end
         list << dep
         false
       else
