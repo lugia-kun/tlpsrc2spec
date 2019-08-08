@@ -4,6 +4,10 @@ module TLpsrc2spec
   class MomongaRule < Rule
     VERSION = "2019-2m"
 
+    # Whether generate (compute requires) texlive-japanese-recommended
+    # package, which is maintained by texlive-metapackages specfile.
+    GENERATE_JAPANESE_RECOMMENDED = false
+
     class Package < TLpsrc2spec::Package
       def group
         super || "Applications/Publishing"
@@ -1263,16 +1267,22 @@ module TLpsrc2spec
       end
 
       if (fontutils = packages?("texlive-collection-fontutils"))
-        fontutils.requires << "psutils"
-        fontutils.requires << "t1utils"
+        fontutils.add_require "psutils"
+        fontutils.add_require "t1utils"
       end
 
-      add_package(Package.new("texlive-japanese-recommended",
-        summary: "TeX Live: recommended packages for Japanese users",
-        description: <<-EOD))
-      This meta-package contains a collection of recommended packages for
-      Japanese texlive users.
-      EOD
+      if (xindy = packages?("texlive-xindy-bin"))
+        xindy.add_require "clisp"
+      end
+
+      if GENERATE_JAPANESE_RECOMMENDED
+        add_package(Package.new("texlive-japanese-recommended",
+          summary: "TeX Live: recommended packages for Japanese users",
+          description: <<-EOD))
+        This meta-package contains a collection of recommended packages for
+        Japanese texlive users.
+        EOD
+      end
     end
 
     def make_config_file(file : String)
@@ -2462,6 +2472,27 @@ module TLpsrc2spec
         RPM::Version.new("2010-3m"),
         RPM::Sense::LESS, nil)
       obsolete_if_not("texlive-scheme-full", obso_all, log: true)
+
+      obso_2009_suite = RPM::Obsolete.new("texlive-suite",
+        RPM::Version.new("2009-15m"),
+        RPM::Sense::LESS, nil)
+      obso_2009_texmf = RPM::Obsolete.new("texlive-texmf",
+        RPM::Version.new("2009-15m"),
+        RPM::Sense::LESS, nil)
+      obsolete_if_not("texlive-scheme-full", obso_2009_suite, log: true)
+      obsolete_if_not("texlive-scheme-full", obso_2009_texmf, log: true)
+
+      obso_tetex_3 = RPM::Obsolete.new("tetex", RPM::Version.new("3.0"),
+        RPM::Sense::LESS | RPM::Sense::EQUAL, nil)
+      obsolete_if_not("texlive-scheme-tetex", obso_tetex_3, log: true)
+
+      # Basically, we does not Provide old package names.
+      # But tetex will never conflict to any other texlive packages, so
+      # added it for mature people who want tetex.
+      prov_tetex_3 = RPM::Provide.new("tetex", RPM::Version.new("3.0"),
+        RPM::Sense::EQUAL, nil)
+      tetex = packages("texlive-scheme-tetex")
+      tetex.add_provide(prov_tetex_3)
     end
 
     def check_obsoletes
@@ -2535,41 +2566,42 @@ module TLpsrc2spec
         end
       end
 
-      newtljap = packages("texlive-japanese-recommended")
-      # RPM.transaction do |ts|
-      begin
-        iter = @ts.init_iterator(RPM::DbiTag::Name, "texlive-japanese-recommended")
+      if (newtljap = packages?("texlive-japanese-recommended"))
+        # RPM.transaction do |ts|
         begin
-          tljap = iter.first?
-          if tljap
-            log.info { "'texlive-japanese-recommended' will install:" }
-            tljap.requires.each do |req|
-              name = req.name
-              if (whatobsoletes = obsoleted_by[name]?)
-                whatobsoletes.each do |provider|
-                  pname = provider.name
-                  if !newtljap.requires.any? do |x|
-                       pname == x
-                     end
-                    log.info { "  * #{pname}" }
-                    newtljap.add_require make_require(provider)
+          iter = @ts.init_iterator(RPM::DbiTag::Name, "texlive-japanese-recommended")
+          begin
+            tljap = iter.first?
+            if tljap
+              log.info { "'texlive-japanese-recommended' will install:" }
+              tljap.requires.each do |req|
+                name = req.name
+                if (whatobsoletes = obsoleted_by[name]?)
+                  whatobsoletes.each do |provider|
+                    pname = provider.name
+                    if !newtljap.requires.any? do |x|
+                         pname == x
+                       end
+                      log.info { "  * #{pname}" }
+                      newtljap.add_require make_require(provider)
+                    end
                   end
+                elsif (whatprovides = packages?(name))
+                  if !newtljap.requires.any? do |x|
+                       name == x
+                     end
+                    log.info { "  * #{name}" }
+                    newtljap.add_require make_require(whatprovides)
+                  end
+                elsif !name.starts_with?("rpmlib")
+                  log.warn { "  ... Nothing found which provides #{name}" }
                 end
-              elsif (whatprovides = packages?(name))
-                if !newtljap.requires.any? do |x|
-                     name == x
-                   end
-                  log.info { "  * #{name}" }
-                  newtljap.add_require make_require(whatprovides)
-                end
-              elsif !name.starts_with?("rpmlib")
-                log.warn { "  ... Nothing found which provides #{name}" }
               end
+              log.info { "(end)" }
             end
-            log.info { "(end)" }
+          ensure
+            iter.finalize
           end
-        ensure
-          iter.finalize
         end
       end
     end
