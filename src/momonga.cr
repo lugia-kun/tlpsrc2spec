@@ -2,7 +2,7 @@ require "./strcase"
 
 module TLpsrc2spec
   class MomongaRule < Rule
-    VERSION = "2019-2m"
+    VERSION = "2019-5m"
 
     # Whether generate (compute requires) texlive-japanese-recommended
     # package, which is maintained by texlive-metapackages specfile.
