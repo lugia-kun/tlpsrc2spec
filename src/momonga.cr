@@ -1053,7 +1053,7 @@ module TLpsrc2spec
 
         pkgname = package_name_from_tlpdb_name(name)
         if pkgname.nil?
-          log.debug { String.build { |x| x << "Skipping package " << name } }
+          log.debug { "Skipping package #{name}" }
           @skipped_packages << tlpkg
           next
         end
