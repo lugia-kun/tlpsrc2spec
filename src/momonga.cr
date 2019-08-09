@@ -1960,6 +1960,11 @@ module TLpsrc2spec
         from = node.package
         node.depends.each do |dep|
           from.add_require make_require(dep)
+
+          # Add reverse require for arch dependent binfiles package.
+          if dep.archdep?
+            dep.add_require make_require(from)
+          end
         end
       end
 
