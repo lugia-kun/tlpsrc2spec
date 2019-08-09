@@ -2482,6 +2482,11 @@ module TLpsrc2spec
       obsolete_if_not("texlive-scheme-full", obso_2009_suite, log: true)
       obsolete_if_not("texlive-scheme-full", obso_2009_texmf, log: true)
 
+      obso_old_main = RPM::Obsolete.new("texlive",
+        RPM::Version.new("2010-29m"),
+        RPM::Sense::LESS, nil)
+      obsolete_if_not("texlive-scheme-full", obso_old_main, log: true)
+
       obso_tetex_3 = RPM::Obsolete.new("tetex", RPM::Version.new("3.0"),
         RPM::Sense::LESS | RPM::Sense::EQUAL, nil)
       obsolete_if_not("texlive-scheme-tetex", obso_tetex_3, log: true)
