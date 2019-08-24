@@ -1581,6 +1581,18 @@ module TLpsrc2spec
       end
     end
 
+    def add_file(pkg_or_name, path, **opts)
+      if pkg_or_name.responds_to?(:files)
+        xpkg = pkg_or_name
+      else
+        xpkg = packages(pkg_or_name)
+      end
+      xpkg.files << FileEntry.new(path, **opts)
+      e = @tree.insert(path)
+      e.package = xpkg
+      e
+    end
+
     def create_file_entries
       @tree.clear
 
@@ -1667,15 +1679,15 @@ module TLpsrc2spec
         exit 1
       end
 
-      log.info "Adding additoinal files"
+      log.info "Adding additional files"
       begin
         infra = packages("texlive-texlive-infra")
         tlpdb = File.join(TEXMFDIR, "tlpkg", "texlive.tlpdb")
-        infra.files << FileEntry.new(tlpdb)
+        add_file(infra, tlpdb)
 
         xdvi = packages("texlive-xdvi")
         desktop = File.join(DATADIR, "applications", "xdvi.desktop")
-        xdvi.files << FileEntry.new(desktop)
+        add_file(xdvi, desktop)
 
         asy = packages("texlive-asymptote")
         [
@@ -1691,7 +1703,25 @@ module TLpsrc2spec
           File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section8.html"),
           File.join(TEXMFDIR, "/doc/asymptote/asy-faq.html/section9.html"),
         ].each do |path|
-          asy.files << FileEntry.new(path, doc: true)
+          add_file(asy, path, doc: true, tlpdb_tag: TLPDB::Tag::DOCFILES)
+        end
+
+        updmap = packages("texlive-tetex")
+        [
+          File.join(TEXMFVARDIR, "/web2c/updmap.log"),
+          File.join(TEXMFVARDIR, "/fonts/map/dvips/updmap/download35.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/dvips/updmap/builtin35.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/dvips/updmap/psfonts_t1.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/dvips/updmap/psfonts_pk.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/dvips/updmap/psfonts.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/dvips/updmap/ps2pk.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/pdftex/updmap/pdftex_dl14.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/pdftex/updmap/pdftex_ndl14.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/pdftex/updmap/pdftex.map"),
+          File.join(TEXMFVARDIR, "/fonts/map/dvipdfmx/updmap/kanjix.map"),
+        ].each do |path|
+          # Tagged as SRCFILES to exclude from path-matching-obsolete rule
+          add_file(updmap, path, ghost: true, tlpdb_tag: TLPDB::Tag::SRCFILES)
         end
       end
 
