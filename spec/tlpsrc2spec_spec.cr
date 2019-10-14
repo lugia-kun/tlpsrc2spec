@@ -103,22 +103,28 @@ describe TLpsrc2spec::DirectoryTree do
   end
 end
 
+describe TLpsrc2spec::TriggerScript do
+  it "can generate from body" do
+    script = TLpsrc2spec::TriggerScript.new("script body",
+      trigger_by: [] of TLpsrc2spec::Dependency)
+  end
+end
+
 describe TLpsrc2spec::Application do
-  File.tempfile("test", ".spec") do |tmpfile|
-    it "can build a spec" do
+  it "can generate proper spec" do
+    File.tempfile("test", ".spec") do |tmpfile|
       app = TLpsrc2spec::Application.create(fixture("texlive.tlpdb"),
         fixture("template.spec"),
-        fixture("installed.spec"))
+        [fixture("installed.spec")])
       app.main(tmpfile, TLpsrc2spec::TestRule)
-    end
-    tmpfile.flush
-    {% if flag?("show_generated_spec") %}
-      tmpfile.pos = 0
-      IO.copy(tmpfile, STDOUT)
-    {% end %}
-    specdata = RPM::Spec.open(tmpfile.path)
 
-    it "can generate proper spec" do
+      tmpfile.flush
+      {% if flag?("show_generated_spec") %}
+        tmpfile.pos = 0
+        IO.copy(tmpfile, STDOUT)
+      {% end %}
+      specdata = RPM::Spec.open(tmpfile.path)
+
       pkgs = specdata.packages
       pkg_map = Hash(String, RPM::Package).new
       pkgs.each do |pkg|
@@ -133,8 +139,16 @@ describe TLpsrc2spec::Application do
 
       #
       master[RPM::Tag::Summary].should eq("Master Package")
-      master[RPM::Tag::Description].should eq("This is a description of the master package.\nTesting escapes: %{test}")
+      master[RPM::Tag::Description].should eq("This is a description of the master package.\nTesting %{test}")
       master[RPM::Tag::PostTrans].should eq("/sbin/ldconfig")
+
+      # For Just reading a specfile, TRIGGERSCRIPTS is not set, and it is
+      # unable to obtain.
+      # See RPM's source build/parseScript.c, l.291 (rpm-4.8.1    [4f8294aa9])
+      #                                       l.400 (rpm-4.14.2.1 [4a9440006])
+      mstest[RPM::Tag::TriggerName].should eq(["master"])
+      mstest[RPM::Tag::TriggerIndex].should eq([0])
+      mstest[RPM::Tag::TriggerFlags].should eq([RPM::Sense::TRIGGERIN.value])
     end
   end
 end

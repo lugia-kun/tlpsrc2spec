@@ -75,7 +75,7 @@ module TLpsrc2spec
                       f : RPM::Sense = RPM::Sense::LESS | RPM::Sense::EQUAL)
       v = rpmpkg[RPM::Tag::Version].as(String)
       r = rpmpkg[RPM::Tag::Release].as(String)
-      e = rpmpkg[RPM::Tag::Epoch].as(UInt32?)
+      e = rpmpkg[RPM::Tag::Epoch]?.as(UInt32?)
       version = RPM::Version.new(v, r, e)
       RPM::Obsolete.new(rpmpkg.name, version, f, nil)
     end

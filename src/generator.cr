@@ -72,53 +72,136 @@ module TLpsrc2spec
       write_data(io, data, join: join, newline_escape: true)
     end
 
+    def write_dependency(io, dep : String)
+      io << dep
+    end
+
+    def write_dependency(io, dep : RPM::Dependency)
+      io << dep.name
+      f = dep.flags
+      if f.greater? || f.equal? || f.less?
+        if f.greater?
+          if f.equal?
+            io << " >= "
+          else
+            io << " > "
+          end
+        elsif f.less?
+          if f.equal?
+            io << " <= "
+          else
+            io << " < "
+          end
+        elsif f.equal?
+          io << " == "
+        end
+        io << dep.version.to_vr
+      end
+    end
+
+    def dependency_to_s(dep : String)
+      dep
+    end
+
+    def dependency_to_s(dep : RPM::Dependency)
+      String.build do |str|
+        write_dependency(str, dep)
+      end
+    end
+
     def write_tag_depends(io : IO, tagname : String, data : Enumerable(String | RPM::Dependency))
       data.each do |item|
-        case item
-        when String
-          write_tag_line(io, tagname, item)
-        when RPM::Dependency
-          text = String.build do |str|
-            str << item.name
-            f = item.flags
-            if f.greater? || f.equal? || f.less?
-              if f.greater?
-                if f.equal?
-                  str << " >= "
-                else
-                  str << " > "
-                end
-              elsif f.less?
-                if f.equal?
-                  str << " <= "
-                else
-                  str << " < "
-                end
-              elsif f.equal?
-                str << " == "
-              end
-              str << item.version.to_vr
-            end
-          end
-          write_tag_line(io, tagname, text)
+        write_tag_line(io, tagname, dependency_to_s(item))
+      end
+    end
+
+    def write_tag_block_hdr(io : IO, tagname : String, master_name : String,
+                            package_name : String, *options : Tuple(String?, String | Bool | Nil))
+      io << "%" << tagname
+      if package_name != master_name
+        m_hyphen = master_name + "-"
+        if !package_name.starts_with?(m_hyphen)
+          io << " -n " << package_name
+        else
+          io << " " << package_name.sub(m_hyphen, "")
         end
       end
+      options.each do |e|
+        key = e[0]
+        val = e[1]
+        if val
+          if key
+            io << " "
+            key.to_s(io)
+          end
+          if val.is_a?(String) && val.size > 0
+            io << " " << val
+          end
+        end
+      end
+      io << "\n"
+    end
+
+    def write_tag_block_hdr(io : IO, tagname : String, master_name : String,
+                            package_name : String)
+      write_tag_block_hdr(io, tagname, master_name, package_name, {nil, nil})
     end
 
     def write_tag_paragraph(io : IO, tagname : String, master_name : String,
                             package_name : String, data, join : String = "\n",
                             **args)
       io << "\n"
-      io << "%" << tagname
-      if package_name != master_name
-        if !package_name.starts_with?(master_name + "-")
-          io << " -n " << package_name
-        else
-          io << " " << package_name.sub(master_name + "-", "")
+      write_tag_block_hdr(io, tagname, master_name, package_name)
+      write_data(io, data, **args)
+    end
+
+    def write_script(io : IO, data : Script, use_heredoc : Bool = false)
+      interp = data.interpreter
+      # FIXME
+      marker = "EOS"
+      if use_heredoc && interp
+        io << interp << " <<'" << marker << "'\n"
+      end
+      body = data.body
+      io << body
+      if !body.ends_with?('\n')
+        io << "\n"
+      end
+      if use_heredoc && interp
+        io << marker << "\n"
+      end
+    end
+
+    def write_tag_script(io : IO, tagname : String, master_name : String,
+                         package_name : String, data : Array(Script))
+      if data.size > 0
+        io << "\n"
+        write_tag_block_hdr(io, tagname, master_name, package_name)
+        data.each_with_index do |script|
+          write_script(io, script, use_heredoc: true)
         end
       end
-      io << "\n"
-      write_data(io, data, **args)
+    end
+
+    def write_tag_trigger_script(io : IO, tagname : String,
+                                 master_name : String, package_name : String,
+                                 data : Array(TriggerScript))
+      if data.size > 0
+        io << "\n"
+        data.each do |script|
+          packages = String.build do |str|
+            script.trigger_by.each_with_index do |dep, i|
+              if i > 0
+                str << " "
+              end
+              write_dependency(str, dep)
+            end
+          end
+          write_tag_block_hdr(io, tagname, master_name, package_name,
+            {"-p", script.interpreter}, {"--", packages})
+          write_script(io, script, use_heredoc: false)
+        end
+      end
     end
 
     def write_tag(io : IO, package : Package, tagname : RPM::Tag)
@@ -164,35 +247,29 @@ module TLpsrc2spec
             package.name, package.description)
         end
       when RPM::Tag::PreIn
-        if package.pre
-          write_tag_paragraph(io, "pre", @master.name,
-            package.name, package.pre)
-        end
+        write_tag_script(io, "pre", @master.name,
+          package.name, package.pre)
       when RPM::Tag::PreTrans
-        if package.pretrans
-          write_tag_paragraph(io, "pretrans", @master.name,
-            package.name, package.pretrans)
-        end
+        write_tag_script(io, "pretrans", @master.name,
+          package.name, package.pretrans)
       when RPM::Tag::PreUn
-        if package.preun
-          write_tag_paragraph(io, "preun", @master.name,
-            package.name, package.preun)
-        end
+        write_tag_script(io, "preun", @master.name,
+          package.name, package.preun)
       when RPM::Tag::PostIn
-        if package.post
-          write_tag_paragraph(io, "post", @master.name,
-            package.name, package.post)
-        end
+        write_tag_script(io, "post", @master.name,
+          package.name, package.post)
       when RPM::Tag::PostTrans
-        if package.posttrans
-          write_tag_paragraph(io, "posttrans", @master.name,
-            package.name, package.posttrans)
-        end
+        write_tag_script(io, "posttrans", @master.name,
+          package.name, package.posttrans)
       when RPM::Tag::PostUn
-        if package.postun
-          write_tag_paragraph(io, "postun", @master.name,
-            package.name, package.postun)
-        end
+        write_tag_script(io, "postun", @master.name,
+          package.name, package.postun)
+      when RPM::Tag::TriggerIn
+        write_tag_trigger_script(io, "triggerin", @master.name, package.name,
+          package.triggerin)
+      when RPM::Tag::TriggerUn
+        write_tag_trigger_script(io, "triggerun", @master.name, package.name,
+          package.triggerun)
       else
         raise "Unsupported tag name: #{tagname}"
       end
@@ -238,7 +315,8 @@ module TLpsrc2spec
 
     def write_scripts(io : IO)
       [RPM::Tag::PreIn, RPM::Tag::PreUn, RPM::Tag::PreTrans,
-       RPM::Tag::PostIn, RPM::Tag::PostUn, RPM::Tag::PostTrans].each do |t|
+       RPM::Tag::PostIn, RPM::Tag::PostUn, RPM::Tag::PostTrans,
+       RPM::Tag::TriggerIn, RPM::Tag::TriggerUn].each do |t|
         @packages.each do |n, pkg|
           write_tag(io, pkg, t)
         end
@@ -248,9 +326,11 @@ module TLpsrc2spec
     def write_install_scripts(io : IO)
       out = false
       @packages.each do |n, pkg|
-        if pkg.install_script
+        if pkg.install_script.size > 0
           io << "### Generated install script for " << n << "\n"
-          io << pkg.install_script
+          pkg.install_script.each do |script|
+            write_script(io, script, use_heredoc: true)
+          end
           out = true
         end
       end
@@ -262,9 +342,11 @@ module TLpsrc2spec
     def write_build_scripts(io : IO)
       out = false
       @packages.each do |n, pkg|
-        if pkg.build_script
+        if pkg.build_script.size > 0
           io << "### Generated build script for " << n << "\n"
-          io << pkg.install_script
+          io << pkg.build_script.each do |script|
+            write_script(io, script, use_heredoc: true)
+          end
           out = true
         end
       end

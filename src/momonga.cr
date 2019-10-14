@@ -1302,10 +1302,7 @@ module TLpsrc2spec
       conf = FileConfig.new
       e = FileEntry.new(cnffile, config: conf)
       pkg.files << e
-      pkg.install_script = String.build do |str|
-        if pkg.install_script
-          str << pkg.install_script
-        end
+      script = String.build do |str|
         base = File.basename(apath)
         adir = File.dirname(apath)
         root = "%{buildroot}"
@@ -1317,25 +1314,20 @@ module TLpsrc2spec
         str << "%{__mv} " << root << locanam << " " << root << destnam << "\n"
         str << "%{__ln_s} " << destnam << " " << root << locanam << "\n\n"
       end
+      pkg.install_script << Script.new(script)
+      path
     end
 
     def add_info_file(pkg : TLpsrc2spec::Package, path : String)
       xpath = File.join(INFODIR, path)
       xname = File.join("%{_infodir}", path)
       base = File.basename(xpath)
-      pkg.post = String.build do |str|
-        if pkg.post
-          str << pkg.post
-        end
-        str << "/sbin/install-info " << xname << " %{_infodir}/dir || :\n"
-      end
-      pkg.preun = String.build do |str|
-        if pkg.preun
-          str << pkg.preun
-        end
-        str << "test $1 -eq 0 && /sbin/install-info --delete " << xname
-        str << " %{_infodir}/dir || :\n"
-      end
+      pkg.post << Script.new(<<-EOD)
+      /sbin/install-info #{xname} %{_infodir}/dir || :
+      EOD
+      pkg.preun << Script.new(<<-EOD)
+      test $1 -eq 0 && /sbin/install-info --delete #{xname} %{_infodir}/dir || :
+      EOD
       xpath + "*"
     end
 
@@ -2050,7 +2042,7 @@ module TLpsrc2spec
     def make_obsolete(rpmpkg : RPM::Package, f : RPM::Sense = RPM::Sense::LESS,
                       *, increment_release : Bool = true)
       n = rpmpkg.name
-      e = rpmpkg[RPM::Tag::Epoch].as(UInt32?)
+      e = rpmpkg[RPM::Tag::Epoch]?.as(UInt32?)
       v = rpmpkg[RPM::Tag::Version].as(String)
       r = rpmpkg[RPM::Tag::Release].as(String)
       make_obsolete(n, e, v, r, f, increment_release: increment_release)
@@ -2713,13 +2705,6 @@ module TLpsrc2spec
         end
         if has_removing
           isc = String.build do |io|
-            first = false
-            if (script = tl_fs_pkg.install_script)
-              if script.size > 0
-                io << script
-                first = true
-              end
-            end
             @tree.each_entry_breadth do |entry|
               # removing
               if entry.package.nil?
@@ -2731,10 +2716,6 @@ module TLpsrc2spec
                   # Already handled parent directory.
                   next
                 end
-                if first
-                  io << "\n"
-                  first = false
-                end
                 io << "%{__rm}"
                 if entry.is_a?(DirectoryNode)
                   io << " -rf"
@@ -2745,7 +2726,7 @@ module TLpsrc2spec
               end
             end
           end
-          tl_fs_pkg.install_script = isc
+          tl_fs_pkg.install_script << Script.new(isc)
         end
       end
     end
@@ -2785,24 +2766,20 @@ module TLpsrc2spec
         {% end %}
       end
       mktexlsrdirs.uniq!
-      target.post = String.build do |b|
-        if (post = target.post)
-          b << post
-        end
+      script = String.build do |b|
         mktexlsrdirs.each do |path|
           b << "%{_post_mktexlsr " << path << "}\n"
         end
       end
-      target.posttrans = String.build do |b|
-        if (posttrans = target.posttrans)
-          b << posttrans
-        end
+      target.post << Script.new(script)
+      script = String.build do |b|
         mktexlsrdirs.each do |path|
           b << "%{_posttrans_mktexlsr "
           b << path
           b << "}\n"
         end
       end
+      target.posttrans << Script.new(script)
       nil
     end
 
@@ -2828,33 +2805,30 @@ module TLpsrc2spec
       #     b << ex.mapfile << "\n"
       #   end
       # end
-      target.post = String.build do |b|
-        if (i = target.post)
-          b << i
-        end
+      script = String.build do |b|
         execs.each do |ex|
           b << "%{_post_updmap "
           b << ex.maptype.to_s << " " << ex.mapfile << "}\n"
         end
       end
-      target.postun = String.build do |b|
-        if (i = target.postun)
-          b << i
-        end
+      target.post << Script.new(script)
+
+      script = String.build do |b|
         execs.each do |ex|
           b << "%{_postun_updmap "
           b << ex.maptype.to_s << " " << ex.mapfile << "}\n"
         end
       end
-      target.posttrans = String.build do |b|
-        if (i = target.posttrans)
-          b << i
-        end
+      target.postun << Script.new(script)
+
+      script = String.build do |b|
         execs.each do |ex|
           b << "%{_posttrans_updmap "
           b << ex.maptype.to_s << " " << ex.mapfile << "}\n"
         end
       end
+      target.posttrans << Script.new(script)
+      nil
     end
 
     def add_format_script(target)

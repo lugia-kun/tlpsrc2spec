@@ -162,42 +162,78 @@ module TLpsrc2spec
     end
   end
 
+  alias Dependency = String | RPM::Dependency
+  alias DependencySet = Array(Dependency)
+
+  class Script
+    property body : String
+    property interpreter : String? = nil
+
+    def initialize(@body, *, @interpreter = nil)
+    end
+
+    def initialize(*, @interpreter = nil, &block)
+      @body = String.build do |io|
+        yield io
+      end
+    end
+  end
+
+  class TriggerScript < Script
+    property trigger_by : DependencySet
+
+    def initialize(body, *, @trigger_by, **args)
+      super(body, **args)
+    end
+
+    def initialize(*, @trigger_by, **args, &block)
+      super(**args, &block)
+    end
+  end
+
   class Package
     property name : String
     property description : String?
     property group : String?
     property summary : String?
     property url : String?
-    property requires : Array(String | RPM::Dependency)
     property version : String?
     property release : String?
     property files : Array(FileEntry)
-    property post : String?
-    property postun : String?
-    property pre : String?
-    property preun : String?
-    property pretrans : String?
-    property posttrans : String?
-    property install_script : String?
-    property build_script : String?
+    property post : Array(Script)
+    property postun : Array(Script)
+    property pre : Array(Script)
+    property preun : Array(Script)
+    property pretrans : Array(Script)
+    property posttrans : Array(Script)
+    property triggerin : Array(TriggerScript)
+    property triggerun : Array(TriggerScript)
+    property install_script : Array(Script)
+    property build_script : Array(Script)
     property tlpdb_pkgs : Array(TLPDB::Package)
-    property obsoletes : Array(String | RPM::Dependency)
-    property provides : Array(String | RPM::Dependency)
-    property conflicts : Array(String | RPM::Dependency)
+    property requires : DependencySet
+    property obsoletes : DependencySet
+    property provides : DependencySet
+    property conflicts : DependencySet
     property license : Array(String)
     property? archdep : Bool
 
     def initialize(@name, *, @description = nil, @group = nil, @summary = nil,
                    @url = nil, @archdep = false,
-                   @requires = ([] of String | RPM::Dependency),
                    @version = nil, @license = ([] of String),
-                   @release = nil, @files = ([] of FileEntry), @post = nil,
-                   @postun = nil, @preun = nil, @pretrans = nil,
-                   @posttrans = nil, @install_script = nil,
-                   @build_script = nil, @tlpdb_pkgs = ([] of TLPDB::Package),
-                   @obsoletes = ([] of String | RPM::Dependency),
-                   @provides = ([] of String | RPM::Dependency),
-                   @conflicts = ([] of String | RPM::Dependency))
+                   @release = nil, @files = ([] of FileEntry),
+                   @pre = ([] of Script), @post = ([] of Script),
+                   @postun = ([] of Script), @preun = ([] of Script),
+                   @pretrans = ([] of Script), @posttrans = ([] of Script),
+                   @triggerin = ([] of TriggerScript),
+                   @triggerun = ([] of TriggerScript),
+                   @install_script = ([] of Script),
+                   @build_script = ([] of Script),
+                   @tlpdb_pkgs = ([] of TLPDB::Package),
+                   @requires = DependencySet.new,
+                   @obsoletes = DependencySet.new,
+                   @provides = DependencySet.new,
+                   @conflicts = DependencySet.new)
     end
 
     private def dependency_tuple(dep : String)

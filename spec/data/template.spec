@@ -1,4 +1,5 @@
 %define variable 1
+%define test 2
 
 # This file is public domain.
 

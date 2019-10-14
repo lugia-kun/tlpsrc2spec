@@ -59,7 +59,7 @@ module TLpsrc2spec
       @log.debug { "Adding #{pkg.name} to installed file database" }
       version = pkg[RPM::Tag::Version].as(String)
       release = pkg[RPM::Tag::Release].as(String)
-      epoch = pkg[RPM::Tag::Epoch].as(UInt32?)
+      epoch = pkg[RPM::Tag::Epoch]?.as(UInt32?)
       name = pkg.name
       v = RPM::Version.new(version, release, epoch)
       evr = v.to_vre
