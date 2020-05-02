@@ -2,5 +2,5 @@ version: 1.0
 shards:
   rpm:
     github: lugia-kun/crystal-rpm
-    commit: cc3c7d2761666a995281602a23323ea1809bbaa5
+    commit: 71dbdb572f7001a59d53d17d6cfe750fd2e787c3
 

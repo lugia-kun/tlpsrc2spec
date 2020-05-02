@@ -5,6 +5,7 @@ module TLpsrc2spec
     # Base spec data for information and searching files
     @base : Array(RPM::Spec)
     @log : Logger
+    @topdir : String?
 
     # Name to package data table
     #
@@ -52,7 +53,7 @@ module TLpsrc2spec
       end
     end
 
-    def initialize(@base, @log)
+    def initialize(@base, @log, @topdir)
     end
 
     private def add_pkg(pkg : RPM::Package)
@@ -120,7 +121,7 @@ module TLpsrc2spec
       @log.debug { "Searching texmf directory" }
       [OLDTEXMFDISTDIR, OLDTEXMFDIR, OLDTEXMFCONFIGDIR, OLDTEXMFVARDIR].each do |dir|
         search_files(dir)
-      rescue e : Errno
+      rescue e : RuntimeError
         @log.error { e.to_s }
       end
       @pkgs
