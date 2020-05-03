@@ -403,7 +403,7 @@ module TLpsrc2spec
         fill(@buf.bytesize)
         while !eof?
           {% begin %}
-            StringCase.strcase \
+            StringCase.strcase do
               case @buf
                   {% for name, val in ALL_TAGS_DATA %}
                   when {{name + " "}}
@@ -415,6 +415,7 @@ module TLpsrc2spec
                 raise ParseError.new("Invalid Key at\n" +
                                      @buf.debug_cursor)
               end
+            end
           {% end %}
         end
         add_package
@@ -753,17 +754,18 @@ module TLpsrc2spec
       end
 
       private def process_addmap
-        maptype = StringCase.strcase \
+        maptype = StringCase.strcase do
           case @buf
-        when "Map "
-          Execute::AddMap::MapType::Map
-        when "MixedMap "
-          Execute::AddMap::MapType::MixedMap
-        when "KanjiMap "
-          Execute::AddMap::MapType::KanjiMap
-        else
-          raise ParseError.new("Unsupported Map type\n" +
-                               @buf.debug_cursor)
+          when "Map "
+            Execute::AddMap::MapType::Map
+          when "MixedMap "
+            Execute::AddMap::MapType::MixedMap
+          when "KanjiMap "
+            Execute::AddMap::MapType::KanjiMap
+          else
+            raise ParseError.new("Unsupported Map type\n" +
+                                 @buf.debug_cursor)
+          end
         end
         mapfile = get_rest_line
         Execute::AddMap.new(maptype, String.new(mapfile).chomp)
@@ -808,17 +810,18 @@ module TLpsrc2spec
 
       private def process_exec(sym : Symbol)
         com : Execute? = nil
-        StringCase.strcase \
+        StringCase.strcase do
           case @buf
-        when "add" # fontmap
-          com = process_addmap
-        when "AddFormat "
-          com = process_addformat
-        when "AddHyphen "
-          com = process_addhyphen
-        else
-          raise ParseError.new("Unsupported Execute type\n" +
-                               @buf.debug_cursor)
+          when "add" # fontmap
+            com = process_addmap
+          when "AddFormat "
+            com = process_addformat
+          when "AddHyphen "
+            com = process_addhyphen
+          else
+            raise ParseError.new("Unsupported Execute type\n" +
+                                 @buf.debug_cursor)
+          end
         end
         lst = @pkg_data_buffer[sym].as(Array(Execute))
         lst << com.not_nil!
@@ -856,21 +859,22 @@ module TLpsrc2spec
 
       private def process_postact(sym : Symbol)
         com : PostAction? = nil
-        StringCase.strcase \
+        StringCase.strcase do
           case @buf
-        when "shortcut "
-          com = process_shortcut
-        when "filetype "
-          com = process_filetype
-        when "fileassoc "
-          com = process_fileassoc
-        when "progid "
-          com = process_progid
-        when "script "
-          com = process_script
-        else
-          raise ParseError.new("Unsupported PostAction type\n" +
-                               @buf.debug_cursor)
+          when "shortcut "
+            com = process_shortcut
+          when "filetype "
+            com = process_filetype
+          when "fileassoc "
+            com = process_fileassoc
+          when "progid "
+            com = process_progid
+          when "script "
+            com = process_script
+          else
+            raise ParseError.new("Unsupported PostAction type\n" +
+                                 @buf.debug_cursor)
+          end
         end
         lst = @pkg_data_buffer[sym].as(Array(PostAction))
         lst << com.not_nil!
