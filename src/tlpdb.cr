@@ -192,7 +192,7 @@ module TLpsrc2spec
 
     {% begin %}
       # Macro support constant for each tags. This should not be used
-      # with compiled into executable file.
+      # and compiled into executable file.
       ALL_TAGS_DATA = {
       {% for t, sym in ALL_TAGS_DATA_TYPE %}
         {% for data in sym[:keys].resolve %}
