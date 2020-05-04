@@ -145,9 +145,6 @@ module TLpsrc2spec
     #
     # List ordering in https://ctan.org/license/
     enum License
-      # Invalid (not recognized)
-      Invalid
-
       # 3-clause BSD
       BSD3
 
@@ -341,6 +338,9 @@ module TLpsrc2spec
       # Unknown, no information
       NoInfo
 
+      # Unkonwn (may be typo in tlpdb?)
+      Unknown
+
       # Collection (collection of packages)
       Collection
 
@@ -443,7 +443,7 @@ module TLpsrc2spec
       def nonfree?
         any_nonfree_cc? || nosell? || artistic? || nocommercial? ||
           nosource? || othernonfree? || shareware? || collection? ||
-          digest? || noinfo?
+          digest? || noinfo? || unknown?
       end
     end
 
@@ -646,6 +646,9 @@ module TLpsrc2spec
     end
 
     class ParseError < Error
+    end
+
+    class InvalidLicenseError < ParseError
     end
 
     class Parser
@@ -1218,6 +1221,7 @@ module TLpsrc2spec
         wordmode = false
         lst = @pkg_data_buffer[sym].as(Array(License))
         while !@buf.eof?
+          @buf.token = @buf.cursor
           StringCase.strcase do
             case @buf
             when " "
@@ -1265,6 +1269,12 @@ module TLpsrc2spec
               lst << License::GPLv2p
             when "gpl2"
               lst << License::GPLv2
+            when "gpl1+"
+              lst << License::GPLv1p
+            when "gpl1"
+              lst << License::GPLv1
+            when "gpl"
+              lst << License::GPL
             when "lgpl2.1"
               lst << License::LGPLv2_1
             when "lgpl3"
@@ -1345,26 +1355,34 @@ module TLpsrc2spec
               lst << License::Shareware
             when "noinfo"
               lst << License::NoInfo
+            when "unknown"
+              lst << License::Unknown
             when "collection"
               lst << License::Collection
             when "digest"
               lst << License::Digest
             else
-              lst << License::Invalid
-              raise "Unknown license string: #{get_rest_line}"
+              @buf.cursor = @buf.token
+              raise InvalidLicenseError.new("Unknown license string found at\n" + @buf.debug_cursor)
             end
           end
           if wordmode
-            save = @buf.pos
+            if @buf.eof?
+              break
+            end
             ch = @buf.next_char
+            if ch == '\n'
+              break
+            end
             if ch != ' '
-              lst << License::Invalid
-              @buf.pos = save
-              raise "Unknown license string: #{get_rest_line}"
+              @buf.cursor = @buf.token
+              raise InvalidLicenseError.new("Unknown license string found at\n" + @buf.debug_cursor)
             end
           end
         end
         lst
+      ensure
+        @buf.token = -1
       end
     end
 
