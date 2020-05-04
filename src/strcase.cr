@@ -160,9 +160,19 @@ module StringCase
         lsz //= 10
       end
       cursor = self.pos
-
+      cursor_line = lines.reduce({cursor, 0}) do |i, s|
+        break -1   if i[0] < 0
+        break i[1] if i[0] <= s.size
+        {i[0] - s.size - 1, i[1] + 1}
+      end
+      if cursor_line.is_a?(Tuple) || (cursor_line < 0)
+        raise "cursor not in valid range"
+      end
+      line_range = (cursor_line - 3)..(cursor_line + 3)
       lines.each_with_index do |s, i|
-        io << " %*d: %s\n" % {lwid, i + @line, s}
+        if line_range.includes?(i)
+          io << " %*d: %s\n" % {lwid, i + @line, s}
+        end
         if cursor >= 0 && cursor <= s.size
           io << " "
           lwid.times do
