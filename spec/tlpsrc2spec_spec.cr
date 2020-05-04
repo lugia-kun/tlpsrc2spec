@@ -3,6 +3,18 @@ require "./test"
 
 include TLpsrc2spec
 
+TEST_LICENSES = [
+  TLpsrc2spec::TLPDB::License::GPLv1,
+  TLpsrc2spec::TLPDB::License::LGPL,
+  TLpsrc2spec::TLPDB::License::LPPLv1_3c,
+]
+TEST2_LICENSES = [
+  TLpsrc2spec::TLPDB::License::GPLv1,
+  TLpsrc2spec::TLPDB::License::LPPLv1_3b,
+  TLpsrc2spec::TLPDB::License::BSD,
+  TLpsrc2spec::TLPDB::License::PublicDomain,
+]
+
 describe TLpsrc2spec::TLPDB do
   it "parses sample" do
     database = File.open(fixture("texlive.tlpdb"), "r") do |fp|
@@ -30,6 +42,7 @@ describe TLpsrc2spec::TLPDB do
       date.second.should eq 0
       date.zone.should eq Time::Location::Zone.new(nil, 3600, false)
     end
+    test.catalogue_licenses.should eq(TEST_LICENSES)
     files = test.binfiles
     files.size.should eq 1
     set = files[0]
@@ -58,6 +71,7 @@ bar
 baz
 
 LONGDESC
+    test.map(&.catalogue_licenses).should eq([TEST_LICENSES, TEST2_LICENSES])
   end
 
   it "can find a package which contains 'bar.sty'" do

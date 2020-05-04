@@ -709,6 +709,8 @@ module TLpsrc2spec
       while !license.eof?
         StringCase.strcase do
           case license
+          when " "
+            # Skip space.
           when "gpl"
             save = license.pos
             ch = license.next_char
@@ -792,6 +794,8 @@ module TLpsrc2spec
             ret << "MIT"
           when "apache2"
             ret << "ASL 2.0"
+          when "isc"
+            ret << "ISC"
           when "bsd"
             save = license.pos
             ch = license.next_char
@@ -1698,7 +1702,7 @@ module TLpsrc2spec
           add_file(asy, path, doc: true, tlpdb_tag: TLPDB::Tag::DOCFILES)
         end
 
-        updmap = packages("texlive-tetex")
+        updmap = packages("texlive-updmap-map")
         [
           File.join(TEXMFVARDIR, "/web2c/updmap.log"),
           File.join(TEXMFVARDIR, "/fonts/map/dvips/updmap/download35.map"),
@@ -2585,7 +2589,12 @@ module TLpsrc2spec
         end
         obso = make_obsolete(pkg)
         log.warn { "Nothing obsoletes #{obso.name}-#{obso.version.to_vre}" }
+        log.debug { "Adding obsolete #{pkg.name} for #{cleanup.name}" }
         cleanup.add_obsolete(obso)
+        pkg.obsoletes.each do |opkg|
+          log.debug { "Adding obsolete #{opkg.name} for #{cleanup.name}" }
+          cleanup.add_obsolete(make_obsolete(opkg))
+        end
       end
 
       log.info { "Reverse obsoletion info" }
