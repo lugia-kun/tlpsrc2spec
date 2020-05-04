@@ -4,8 +4,6 @@ require "./test"
 include TLpsrc2spec
 
 describe TLpsrc2spec::TLPDB do
-  database = nil
-
   it "parses sample" do
     database = File.open(fixture("texlive.tlpdb"), "r") do |fp|
       TLPDB.parse(fp)
@@ -14,7 +12,9 @@ describe TLpsrc2spec::TLPDB do
   end
 
   it "can find a package 'test'" do
-    db = database.as(TLPDB)
+    db = File.open(fixture("texlive.tlpdb"), "r") do |fp|
+      TLPDB.parse(fp)
+    end
     test = db["test"]
     test.name.should eq("test")
     test.category.should eq("coll")
@@ -45,7 +45,9 @@ describe TLpsrc2spec::TLPDB do
   end
 
   it "can find package the name starts with 'test'" do
-    db = database.as(TLPDB)
+    db = File.open(fixture("texlive.tlpdb"), "r") do |fp|
+      TLPDB.parse(fp)
+    end
     test = db[name: {TLPDB::ValueQuery::StartsWith, "test"}]
     test.map(&.name).should eq(%w[test test2])
     test.map(&.category).should eq(%w[coll coll])
@@ -59,7 +61,9 @@ LONGDESC
   end
 
   it "can find a package which contains 'bar.sty'" do
-    db = database.as(TLPDB)
+    db = File.open(fixture("texlive.tlpdb"), "r") do |fp|
+      TLPDB.parse(fp)
+    end
     test = db[runfiles: "bar.sty"]
     test.size.should eq(1)
     pkg = test[0]
@@ -67,7 +71,9 @@ LONGDESC
   end
 
   it "can find packages which their revision is less or equal to 100" do
-    db = database.as(TLPDB)
+    db = File.open(fixture("texlive.tlpdb"), "r") do |fp|
+      TLPDB.parse(fp)
+    end
     test = db[revision: {TLPDB::ValueQuery::LE, 100}]
     test.size.should eq(2)
     pkg = test[0]

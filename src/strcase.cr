@@ -20,9 +20,9 @@ module StringCase
       return keep if io.nil?
       return keep if @eof >= 0
       lexeme = keep
-      lexeme = @token if lexeme < 0 || @token < keep
-      lexeme = @marker if lexeme < 0 || @marker < keep
-      lexeme = self.pos if lexeme < 0 || self.pos < keep
+      lexeme = @token if lexeme < 0 || (@token >= 0 && @token < lexeme)
+      lexeme = @marker if lexeme < 0 || (@marker >= 0 && @marker < lexeme)
+      lexeme = self.pos if lexeme < 0 || (self.pos >= 0 && self.pos < lexeme)
       if lexeme > 0
         nlp = (lexeme - 1).downto(0).each do |i|
           if self.buffer[i] == '\n'.ord
@@ -233,8 +233,7 @@ module StringCase
     end
   end
 
-  macro make_recursive_case(case_io, save_mark, depth, test_eof,
-                            case_insensitive, accept, not_matched, *lists)
+  macro make_recursive_case(case_io, depth, test_eof, case_insensitive, not_matched, *lists)
     {% m = {} of CharLiteral => ArrayLiteral %}
     {% has_end_here = nil %}
     {% for x in lists %}
@@ -250,138 +249,98 @@ module StringCase
         {% end %}
       {% end %}
     {% end %}
-    {% if has_end_here && lists.size == 1 %}
-      {% if test_eof %}
-        if {{case_io}}.peek_char.nil?
-          {{case_io}}.marker = -1
-          {{ has_end_here.id }}
-        else
-          {% if depth > 0 %}
-            {{case_io}}.cursor = {{case_io}}.marker
-            {{case_io}}.marker = -1
+    {% if (has_end_here && !test_eof) || depth == 1 %}
+      {{case_io}}.marker = {{case_io}}.cursor
+    {% end %}
+    case (yych = {{case_io}}.next_char)
+        {% for c, sublist in m %}
+          {% if case_insensitive %}
+            {% s = c.id.stringify %}
+            {% cand = [s.upcase.chars[0], s.upcase.downcase.chars[0]] %}
+          {% else %}
+            {% cand = [c] %}
           {% end %}
-          {% if accept %}
-            {{ accept.id }}
-          {% elsif not_matched %}
-            {{ not_matched.id }}
-          {% end %}
-        end
-      {% else %}
-        {{case_io}}.marker = -1
-        {{ has_end_here.id }}
-      {% end %}
-    {% else %}
-      {% if has_end_here && !test_eof %}
-        yych = {{case_io}}.peek_char
-      {% else %}
-        yych = {{case_io}}.next_char
-      {% end %}
-        case yych
-            {% for c in m.keys %}
-              {% if case_insensitive %}
-                {% s = c.id.stringify %}
-                {% cup = s.upcase.chars[0] %}
-                {% cdn = s.upcase.downcase.chars[0] %}
-                {% if cup == cdn %}
-                when {{cup}}
-                {% else %}
-                when {{cup}}, {{cdn}}
-                {% end %}
-              {% else %}
-              when {{c}}
-              {% end %}
-              {% if save_mark %}
-                {{case_io}}.marker = {{case_io}}.cursor
-              {% end %}
-              {% if has_end_here && !test_eof %}
-                {% if !save_mark %}
-                {{case_io}}.marker = {{case_io}}.cursor
-                {% end %}
-                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{case_insensitive}}, {{has_end_here}}, {{not_matched}}, {{m[c].splat}})
-              {% else %}
-                ::StringCase.make_recursive_case({{case_io}}, false, {{depth + 1}}, {{test_eof}}, {{case_insensitive}}, nil, {{not_matched}}, {{m[c].splat}})
-              {% end %}
-            {% end %}
-        else
-          {% if has_end_here %}
+        when {{*cand.uniq}}
+          {% if sublist.size == 1 && sublist[0][0].size == depth + 1 %}
             {% if test_eof %}
-              if {{case_io}}.peek_char.nil?
-                {{case_io}}.marker = -1
-                {{has_end_here.id}}
+              if {{case_io}}.eof?
+                {{sublist[0][1].id}}
               else
-                {% if depth > 0 %}
-                  {{case_io}}.cursor = {{case_io}}.marker
-                  {{case_io}}.marker = -1
-                {% end %}
-                {% if accept %}
-                  {{ accept.id }}
-                {% elsif not_matched %}
-                  {{ not_matched.id }}
-                {% end %}
+                {{case_io}}.cursor = {{case_io}}.marker
+                {{not_matched.id}}
               end
             {% else %}
-              {{case_io}}.marker = -1
-              {{has_end_here.id}}
+              {{sublist[0][1].id}}
             {% end %}
           {% else %}
-            {% if depth > 0 %}
-              {{case_io}}.cursor = {{case_io}}.marker
-              {{case_io}}.marker = -1
+            {% if !test_eof && has_end_here %}
+              {% sub_nm = has_end_here %}
+            {% else %}
+              {% sub_nm = not_matched %}
             {% end %}
-            {% if accept %}
-              {{ accept.id }}
-            {% elsif not_matched %}
-              {{ not_matched.id }}
-            {% end %}
+            ::StringCase.make_recursive_case({{case_io}}, {{depth + 1}}, {{test_eof}}, {{case_insensitive}}, {{sub_nm}}, {{*sublist}})
           {% end %}
-        end
-    {% end %}
+        {% end %}
+    else
+      {% if depth > 0 %}
+        {{case_io}}.cursor = {{case_io}}.marker
+      {% end %}
+      {% if has_end_here %}
+        {{has_end_here.id}}
+      {% else %}
+        {{not_matched.id}}
+      {% end %}
+    end
   end
 
   macro strcase_base(case_stmt, **options)
-    {% if case_stmt.is_a?(Block) %}
-      {% case_stmt = case_stmt.body %}
-    {% end %}
-    {% if case_stmt.is_a?(Expressions) %}
-      {% exps = case_stmt.expressions %}
-      {% if exps.size == 1 %}
-        {% case_stmt = exps[0] %}
+    begin
+      {% if case_stmt.is_a?(Block) %}
+        {% case_stmt = case_stmt.body %}
+      {% end %}
+      {% if case_stmt.is_a?(Expressions) %}
+        {% exps = case_stmt.expressions %}
+        {% if exps.size == 1 %}
+          {% case_stmt = exps[0] %}
+        {% else %}
+          {% raise "Expected single Case statement expression" %}
+        {% end %}
+      {% end %}
+      {% if !case_stmt.is_a?(Case) %}
+        {% raise "case_stmt must be Case statement" %}
+      {% end %}
+      {% case_insensitive = options[:case_insensitive] || false %}
+      {% test_eof = options[:complete] || false %}
+      {% print_debug = options[:debug] || false %}
+      {% obj = case_stmt.cond %}
+      {% whens = case_stmt.whens %}
+      {% not_matched = case_stmt.else %}
+      {% lists = [] of Tuple(NilLiteral | StringLiteral | ASTNode) %}
+      {% for w in whens %}
+        {% for c in w.conds %}
+          {% if !c.is_a?(StringLiteral) %}
+            {% raise "conditionals must be a literal string" %}
+          {% end %}
+          {% if case_insensitive %}
+            {% c = c.upcase %}
+          {% end %}
+          {% lists << {c, "#{w.body}"} %}
+        {% end %}
+      {% end %}
+      {% if not_matched.is_a?(Nop) %}
+        {% not_matched = nil %}
       {% else %}
-        {% raise "Expected single Case statement expression" %}
+        {% not_matched = "#{not_matched}" %}
       {% end %}
-    {% end %}
-    {% if !case_stmt.is_a?(Case) %}
-      {% raise "case_stmt must be Case statement" %}
-    {% end %}
-    {% case_insensitive = options[:case_insensitive] || false %}
-    {% test_eof = options[:complete] || false %}
-    {% print_debug = options[:debug] || false %}
-    {% obj = case_stmt.cond %}
-    {% whens = case_stmt.whens %}
-    {% not_matched = case_stmt.else %}
-    {% lists = [] of Tuple(NilLiteral | StringLiteral | ASTNode) %}
-    {% for w in whens %}
-      {% for c in w.conds %}
-        {% if !c.is_a?(StringLiteral) %}
-          {% raise "conditionals must be a literal string" %}
-        {% end %}
-        {% if case_insensitive %}
-          {% c = c.upcase %}
-        {% end %}
-        {% lists << {c, "#{w.body}"} %}
+      ::StringCase.make_recursive_case({{obj}}, 0, {{test_eof}},
+                                       {{case_insensitive}},
+                                       {{not_matched}}, {{lists.splat}})
+      {% if print_debug %}
+        {% debug %}
       {% end %}
-    {% end %}
-    {% if not_matched.is_a?(Nop) %}
-      {% not_matched = nil %}
-    {% else %}
-      {% not_matched = "#{not_matched}" %}
-    {% end %}
-    ::StringCase.make_recursive_case({{obj}}, true, 0, {{test_eof}},
-                                     {{case_insensitive}}, nil,
-                                     {{not_matched}}, {{lists.splat}})
-    {% if print_debug %}
-      {% debug %}
-    {% end %}
+    ensure
+      {{obj}}.marker = -1
+    end
   end
 
   macro strcase(**options, &block)
