@@ -109,8 +109,31 @@ module TLpsrc2spec
       end
     end
 
+    def dependency_sorter(a : String, b : String)
+      a <=> b
+    end
+
+    def dependency_sorter(a : RPM::Dependency, b : String)
+      a.name <=> b
+    end
+
+    def dependency_sorter(a : String, b : RPM::Dependency)
+      a <=> b.name
+    end
+
+    def dependency_sorter(a : RPM::Dependency, b : RPM::Dependency)
+      c = a.name <=> b.name
+      if c != 0
+        c
+      else
+        a.version <=> b.version
+      end
+    end
+
     def write_tag_depends(io : IO, tagname : String, data : Enumerable(String | RPM::Dependency))
-      data.each do |item|
+      data.sort do |a, b|
+        dependency_sorter(a, b)
+      end.each do |item|
         write_tag_line(io, tagname, dependency_to_s(item))
       end
     end
