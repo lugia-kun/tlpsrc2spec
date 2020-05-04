@@ -157,7 +157,7 @@ module StringCase
       lwid = 0
       while lsz > 0
         lwid += 1
-        lsz /= 10
+        lsz //= 10
       end
       cursor = self.pos
 
