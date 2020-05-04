@@ -141,6 +141,312 @@ module TLpsrc2spec
       end
     end
 
+    # Licenses used in CTAN
+    #
+    # List ordering in https://ctan.org/license/
+    enum License
+      # Invalid (not recognized)
+      Invalid
+
+      # 3-clause BSD
+      BSD3
+
+      # Apache License version 2.0
+      Apache2
+
+      # BSD License
+      BSD4
+
+      # BSD Style License
+      BSD
+
+      # CC-BY 1.0
+      CC_BY_1_0
+
+      # CC-BY 2.0
+      CC_BY_2_0
+
+      # CC-BY 3.0
+      CC_BY_3_0
+
+      # CC-BY 4.0
+      CC_BY_4_0
+
+      # CC-BY-SA 1.0
+      CC_BY_SA_1_0
+
+      # CC-BY-SA 2.0
+      CC_BY_SA_2_0
+
+      # CC-BY-SA 3.0
+      CC_BY_SA_3_0
+
+      # CC-BY-SA 4.0
+      CC_BY_SA_4_0
+
+      # CC0 1.0
+      CC0
+
+      # (GNU) Free Documentation License
+      FDL
+
+      # Free license not otherwise listed
+      OtherFree
+
+      # GNU General Public License
+      GPL
+
+      # GNU General Public License version 1
+      GPLv1
+
+      # GNU General Public License version 2
+      GPLv2
+
+      # GNU General Public License version 3
+      GPLv3
+
+      # GNU General Public License version 1 or later
+      GPLv1p
+
+      # GNU General Public License version 2 or later
+      GPLv2p
+
+      # GNU General Public License version 3 or later
+      GPLv3p
+
+      # GNU Lesser General Public License
+      LGPL
+
+      # GNU Lesser General Public License version 2.1
+      LGPLv2_1
+
+      # GNU Lesser General Public License version 3
+      LGPLv3
+
+      # ISC License
+      ISC
+
+      # Knuth License
+      Knuth
+
+      # MIT License
+      MIT
+
+      # Open Publication License
+      OPL
+
+      # Perl Artistic License, version 2
+      Artistic2
+
+      # Public Domain
+      PublicDomain
+
+      # Simplified BSD License (2-clause)
+      BSD2
+
+      # The GUST Font License
+      GFL
+
+      # The GUST Font Source License
+      GFSL
+
+      # LaTeX-Project Public License
+      LPPL
+
+      # LaTeX Project Public License version 1
+      LPPLv1
+
+      # LaTeX Project Public License version 1.2
+      LPPLv1_2
+
+      # LaTeX Project Public License version 1.3
+      LPPLv1_3
+
+      # LaTeX Project Public License version 1.3a
+      LPPLv1_3a
+
+      # LaTeX Project Public License version 1.3b
+      LPPLv1_3b
+
+      # LaTeX Project Public License version 1.3c
+      LPPLv1_3c
+
+      # SIL Open Font License
+      OFL
+
+      # ---- nonfree from here ----
+
+      # CC-BY-NC 1.0
+      CC_BY_NC_1_0
+
+      # CC-BY-NC 2.0
+      CC_BY_NC_2_0
+
+      # CC-BY-NC 3.0
+      CC_BY_NC_3_0
+
+      # CC-BY-NC 4.0
+      CC_BY_NC_4_0
+
+      # CC-BY-NC-ND 1.0
+      CC_BY_NC_ND_1_0
+
+      # CC-BY-NC-ND 2.0
+      CC_BY_NC_ND_2_0
+
+      # CC-BY-NC-ND 2.5
+      CC_BY_NC_ND_2_5
+
+      # CC-BY-NC-ND 3.0
+      CC_BY_NC_ND_3_0
+
+      # CC-BY-NC-ND 4.0
+      CC_BY_NC_ND_4_0
+
+      # CC-BY-NC-SA 4.0
+      CC_BY_NC_SA_4_0
+
+      # CC-BY-ND 1.0
+      CC_BY_ND_1_0
+
+      # CC-BY-ND 2.0
+      CC_BY_ND_2_0
+
+      # CC-BY-ND 3.0
+      CC_BY_ND_3_0
+
+      # CC-BY-ND 4.0
+      CC_BY_ND_4_0
+
+      # Do Not Sell Except by Arrangement
+      NoSell
+
+      # License that prevents distribution
+      OtherNonfree
+
+      # No Commercial Use
+      NoCommercial
+
+      # No Source Available
+      NoSource
+
+      # Perl Artistic License
+      Artistic
+
+      # Shareware: A fee is required
+      Shareware
+
+      # ---- miscellaneous ----
+
+      # Unknown, no information
+      NoInfo
+
+      # Collection (collection of packages)
+      Collection
+
+      # Digest (collcation of mailing list posts, or of material
+      # related to some publication)
+      Digest
+
+      # Returns true for BSD-like licenses
+      def any_bsd?
+        bsd? || bsd2? || bsd3? || bsd4?
+      end
+
+      # Returns true for any LPPL versions
+      def any_lppl?
+        lppl? || lpplv1? || lpplv1_2? || lpplv1_3? || lpplv1_3a? ||
+          lpplv1_3b? || lpplv1_3c?
+      end
+
+      # Returns true for any GPL versions
+      def any_gpl?
+        gpl? || gplv1? || gplv2? || gplv3? || gplv1p? || gplv2p? ||
+          gplv3p?
+      end
+
+      # Returns true for any LGPL versions
+      def any_lgpl?
+        lgpl? || lgplv1_2? || lgplv3?
+      end
+
+      # Returns true for any Perl Artistic licenses versions
+      #
+      # NOTE: Artistic license version 1.0 is non-free license
+      def any_artistic?
+        artistic? || artistic2?
+      end
+
+      # Returns true for CC0 and Public Domain.
+      def any_public_domain?
+        cc0? || publicdomain?
+      end
+
+      # Returns true for any CC-BY versions.
+      def any_cc_by?
+        cc_by_1_0? || cc_by_2_0? || cc_by_3_0? || cc_by_4_0?
+      end
+
+      # Returns true for any CC-BY-SA versions.
+      def any_cc_by_sa?
+        cc_by_sa_1_0? || cc_by_sa_2_0? || cc_by_sa_3_0? || cc_by_sa_4_0?
+      end
+
+      # Returns true for any CC-BY-NC versions
+      def any_cc_by_nc?
+        cc_by_nc_1_0? || cc_by_nc_2_0? || cc_by_nc_3_0? || cc_by_nc_4_0?
+      end
+
+      # Returns true for any CC-BY-NC-ND versions
+      def any_cc_by_nc_nd?
+        cc_by_nc_nd_1_0? || cc_by_nc_nd_2_0? || cc_by_nc_nd_2_5? ||
+          cc_by_nc_nd_3_0? || cc_by_nc_nd_4_0?
+      end
+
+      def any_cc_by_nc_sa?
+        cc_by_nc_sa_4_0?
+      end
+
+      # Returns true for any CC-BY-ND versions
+      def any_cc_by_nd?
+        cc_by_nd_1_0? || cc_by_nd_2_0? || cc_by_nd_3_0? || cc_by_nd_4_0?
+      end
+
+      # Returns true for any free Creative Commons
+      def any_free_cc?
+        any_cc_by? || any_cc_by_sa?
+      end
+
+      # Returns true for any nonfree Creative Commons
+      def any_nonfree_cc?
+        any_cc_by_nc? || any_cc_by_nc_nd? || any_cc_by_nd? ||
+          any_cc_by_nc_sa?
+      end
+
+      # Returns true for any Creative Commons (including CC0)
+      #
+      # NOTE: CC-BY-NC, CC-BY-NC-ND, CC-BY-NC-SA, and CC-BY-ND are
+      # nonfree licenses.
+      def any_cc?
+        any_free_cc? || any_nonfree_cc? || cc0?
+      end
+
+      # Returns true for any free licenses
+      def free?
+        any_bsd? || any_gpl? || any_lgpl? || any_free_cc? ||
+          any_lppl? || any_public_domain? || apache2? || fdl? ||
+          otherfree? || isc? || knuth? || mit? || opl? || artistic2? ||
+          gfl? || gfsl? || ofl?
+      end
+
+      # Returns true for any nonfree licenses
+      def nonfree?
+        any_nonfree_cc? || nosell? || artistic? || nocommercial? ||
+          nosource? || othernonfree? || shareware? || collection? ||
+          digest? || noinfo?
+      end
+    end
+
     # List of tags which builds an execute command from each occurances.
     EXEC_TAGS = [
       {name: "execute", var_symbol: "executes"},
@@ -167,7 +473,7 @@ module TLpsrc2spec
 
     # List of tags which is a single line data
     SINGLE_TAGS = %w[name category shortdesc catalogue catalogue-ctan
-      catalogue-license catalogue-version catalogue-contact-home
+      catalogue-version catalogue-contact-home
       catalogue-contact-repository catalogue-contact-announce
       catalogue-contact-bugs catalogue-contact-development
       catalogue-contact-support catalogue-alias
@@ -179,15 +485,20 @@ module TLpsrc2spec
     # List of tags which defines list of files.
     FILES_TAGS = %w[runfiles srcfiles binfiles docfiles]
 
+    # List of tags which defines list of licenses.
+    LICENSE_TAGS = [{name: "catalogue-license",
+                     var_symbol: "catalogue_licenses"}]
+
     ALL_TAGS_DATA_TYPE = {
-      single:  {keys: SINGLE_TAGS, type: String?},
-      integer: {keys: INTEGER_TAGS, type: Int32?},
-      time:    {keys: TIME_TAGS, type: Time?},
-      exec:    {keys: EXEC_TAGS, type: Array(Execute)},
-      postact: {keys: POSTACT_TAGS, type: Array(PostAction)},
-      long:    {keys: LONG_TAGS, type: String?},
-      files:   {keys: FILES_TAGS, type: Array(Files)},
-      words:   {keys: WORDS_TAGS, type: Array(String)},
+      single:   {keys: SINGLE_TAGS, type: String?},
+      integer:  {keys: INTEGER_TAGS, type: Int32?},
+      time:     {keys: TIME_TAGS, type: Time?},
+      exec:     {keys: EXEC_TAGS, type: Array(Execute)},
+      postact:  {keys: POSTACT_TAGS, type: Array(PostAction)},
+      long:     {keys: LONG_TAGS, type: String?},
+      files:    {keys: FILES_TAGS, type: Array(Files)},
+      words:    {keys: WORDS_TAGS, type: Array(String)},
+      licenses: {keys: LICENSE_TAGS, type: Array(License)},
     }
 
     {% begin %}
@@ -484,6 +795,10 @@ module TLpsrc2spec
       end
 
       private def get_files_data(data : Array(Files))
+        data.dup
+      end
+
+      private def get_licenses_data(data : Array(License))
         data.dup
       end
 
@@ -897,6 +1212,159 @@ module TLpsrc2spec
         data = get_rest_line
         io = @pkg_data_buffer[sym].as(IO::Memory)
         io.write(data)
+      end
+
+      private def process_licenses(sym : Symbol)
+        wordmode = false
+        lst = @pkg_data_buffer[sym].as(Array(License))
+        while !@buf.eof?
+          StringCase.strcase do
+            case @buf
+            when " "
+              wordmode = true
+              next
+            when "\n"
+              break
+            when "bsd2"
+              lst << License::BSD2
+            when "bsd3"
+              lst << License::BSD3
+            when "bsd4"
+              lst << License::BSD4
+            when "bsd"
+              lst << License::BSD
+            when "apache2"
+              lst << License::Apache2
+            when "cc-by-1"
+              lst << License::CC_BY_1_0
+            when "cc-by-2"
+              lst << License::CC_BY_2_0
+            when "cc-by-3"
+              lst << License::CC_BY_3_0
+            when "cc-by-4"
+              lst << License::CC_BY_4_0
+            when "cc-by-sa-1"
+              lst << License::CC_BY_SA_1_0
+            when "cc-by-sa-2"
+              lst << License::CC_BY_SA_2_0
+            when "cc-by-sa-3"
+              lst << License::CC_BY_SA_3_0
+            when "cc-by-sa-4"
+              lst << License::CC_BY_SA_4_0
+            when "fdl"
+              lst << License::FDL
+            when "other-free"
+              lst << License::OtherFree
+            when "cc0"
+              lst << License::CC0
+            when "gpl3+"
+              lst << License::GPLv3p
+            when "gpl3"
+              lst << License::GPLv3
+            when "gpl2+"
+              lst << License::GPLv2p
+            when "gpl2"
+              lst << License::GPLv2
+            when "lgpl2.1"
+              lst << License::LGPLv2_1
+            when "lgpl3"
+              lst << License::LGPLv3
+            when "lgpl"
+              lst << License::LGPL
+            when "isc"
+              lst << License::ISC
+            when "knuth"
+              lst << License::Knuth
+            when "mit"
+              lst << License::MIT
+            when "opl"
+              lst << License::OPL
+            when "artistic2"
+              lst << License::Artistic2
+            when "artistic"
+              lst << License::Artistic
+            when "pd"
+              lst << License::PublicDomain
+            when "gfl"
+              lst << License::GFL
+            when "gfsl"
+              lst << License::GFSL
+            when "lppl1.3a"
+              lst << License::LPPLv1_3a
+            when "lppl1.3b"
+              lst << License::LPPLv1_3b
+            when "lppl1.3c"
+              lst << License::LPPLv1_3c
+            when "lppl1.3"
+              lst << License::LPPLv1_3
+            when "lppl1.2"
+              lst << License::LPPLv1_2
+            when "lppl1"
+              lst << License::LPPLv1
+            when "lppl"
+              lst << License::LPPL
+            when "ofl"
+              lst << License::OFL
+            when "cc-by-nc-1"
+              lst << License::CC_BY_NC_1_0
+            when "cc-by-nc-2"
+              lst << License::CC_BY_NC_2_0
+            when "cc-by-nc-3"
+              lst << License::CC_BY_NC_3_0
+            when "cc-by-nc-4"
+              lst << License::CC_BY_NC_4_0
+            when "cc-by-nc-nd-1"
+              lst << License::CC_BY_NC_ND_1_0
+            when "cc-by-nc-nd-2"
+              lst << License::CC_BY_NC_ND_2_0
+            when "cc-by-nc-nd-2.5"
+              lst << License::CC_BY_NC_ND_2_5
+            when "cc-by-nc-nd-3"
+              lst << License::CC_BY_NC_ND_3_0
+            when "cc-by-nc-nd-4"
+              lst << License::CC_BY_NC_ND_4_0
+            when "cc-by-nc-sa-4"
+              lst << License::CC_BY_NC_SA_4_0
+            when "cc-by-nd-1"
+              lst << License::CC_BY_ND_1_0
+            when "cc-by-nd-2"
+              lst << License::CC_BY_ND_2_0
+            when "cc-by-nd-3"
+              lst << License::CC_BY_ND_3_0
+            when "cc-by-nd-4"
+              lst << License::CC_BY_ND_4_0
+            when "nosell"
+              lst << License::NoSell
+            when "other-nonfree"
+              lst << License::OtherNonfree
+            when "nocommercial"
+              lst << License::NoCommercial
+            when "nosource"
+              lst << License::NoSource
+            when "shareware"
+              lst << License::Shareware
+            when "noinfo"
+              lst << License::NoInfo
+            when "collection"
+              lst << License::Collection
+            when "digest"
+              lst << License::Digest
+            else
+              lst << License::Invalid
+              raise "Unknown license string: #{get_rest_line}"
+            end
+          end
+          if wordmode
+            save = @buf.pos
+            ch = @buf.next_char
+            if ch != ' '
+              lst << License::Invalid
+              @buf.pos = save
+              raise "Unknown license string: #{get_rest_line}"
+            end
+          end
+        end
+        lst
       end
     end
 
