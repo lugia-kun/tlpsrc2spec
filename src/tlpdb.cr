@@ -141,6 +141,24 @@ module TLpsrc2spec
       end
     end
 
+    # Categories
+    enum Category
+      # Core package of TeX Live
+      TLCore
+
+      # General Package
+      Package
+
+      # Collection of Pacakges
+      Collection
+
+      # Packages related ConTeXt
+      ConTeXt
+
+      # Scheme for installation
+      Scheme
+    end
+
     # Licenses used in CTAN
     #
     # List ordering in https://ctan.org/license/
@@ -194,31 +212,31 @@ module TLpsrc2spec
       GPL
 
       # GNU General Public License version 1
-      GPLv1
+      GPL_v1
 
       # GNU General Public License version 2
-      GPLv2
+      GPL_v2
 
       # GNU General Public License version 3
-      GPLv3
+      GPL_v3
 
       # GNU General Public License version 1 or later
-      GPLv1p
+      GPL_v1_p
 
       # GNU General Public License version 2 or later
-      GPLv2p
+      GPL_v2_p
 
       # GNU General Public License version 3 or later
-      GPLv3p
+      GPL_v3_p
 
       # GNU Lesser General Public License
       LGPL
 
       # GNU Lesser General Public License version 2.1
-      LGPLv2_1
+      LGPL_v2_1
 
       # GNU Lesser General Public License version 3
-      LGPLv3
+      LGPL_v3
 
       # ISC License
       ISC
@@ -251,22 +269,22 @@ module TLpsrc2spec
       LPPL
 
       # LaTeX Project Public License version 1
-      LPPLv1
+      LPPL_v1
 
       # LaTeX Project Public License version 1.2
-      LPPLv1_2
+      LPPL_v1_2
 
       # LaTeX Project Public License version 1.3
-      LPPLv1_3
+      LPPL_v1_3
 
       # LaTeX Project Public License version 1.3a
-      LPPLv1_3a
+      LPPL_v1_3a
 
       # LaTeX Project Public License version 1.3b
-      LPPLv1_3b
+      LPPL_v1_3b
 
       # LaTeX Project Public License version 1.3c
-      LPPLv1_3c
+      LPPL_v1_3c
 
       # SIL Open Font License
       OFL
@@ -355,19 +373,19 @@ module TLpsrc2spec
 
       # Returns true for any LPPL versions
       def any_lppl?
-        lppl? || lpplv1? || lpplv1_2? || lpplv1_3? || lpplv1_3a? ||
-          lpplv1_3b? || lpplv1_3c?
+        lppl? || lppl_v1? || lppl_v1_2? || lppl_v1_3? || lppl_v1_3a? ||
+          lppl_v1_3b? || lppl_v1_3c?
       end
 
       # Returns true for any GPL versions
       def any_gpl?
-        gpl? || gplv1? || gplv2? || gplv3? || gplv1p? || gplv2p? ||
-          gplv3p?
+        gpl? || gpl_v1? || gpl_v2? || gpl_v3? || gpl_v1_p? || gpl_v2_p? ||
+          gpl_v3_p?
       end
 
       # Returns true for any LGPL versions
       def any_lgpl?
-        lgpl? || lgplv1_2? || lgplv3?
+        lgpl? || lgpl_v2_1? || lgpl_v3?
       end
 
       # Returns true for any Perl Artistic licenses versions
@@ -379,7 +397,7 @@ module TLpsrc2spec
 
       # Returns true for CC0 and Public Domain.
       def any_public_domain?
-        cc0? || publicdomain?
+        cc0? || public_domain?
       end
 
       # Returns true for any CC-BY versions.
@@ -435,15 +453,15 @@ module TLpsrc2spec
       def free?
         any_bsd? || any_gpl? || any_lgpl? || any_free_cc? ||
           any_lppl? || any_public_domain? || apache2? || fdl? ||
-          otherfree? || isc? || knuth? || mit? || opl? || artistic2? ||
+          other_free? || isc? || knuth? || mit? || opl? || artistic2? ||
           gfl? || gfsl? || ofl?
       end
 
       # Returns true for any nonfree licenses
       def nonfree?
-        any_nonfree_cc? || nosell? || artistic? || nocommercial? ||
-          nosource? || othernonfree? || shareware? || collection? ||
-          digest? || noinfo? || unknown?
+        any_nonfree_cc? || no_sell? || artistic? || no_commercial? ||
+          no_source? || other_nonfree? || shareware? || collection? ||
+          digest? || no_info? || unknown?
       end
     end
 
@@ -472,7 +490,7 @@ module TLpsrc2spec
     TIME_TAGS = %w[catalogue-date]
 
     # List of tags which is a single line data
-    SINGLE_TAGS = %w[name category shortdesc catalogue catalogue-ctan
+    SINGLE_TAGS = %w[name shortdesc catalogue catalogue-ctan
       catalogue-version catalogue-contact-home
       catalogue-contact-repository catalogue-contact-announce
       catalogue-contact-bugs catalogue-contact-development
@@ -486,8 +504,10 @@ module TLpsrc2spec
     FILES_TAGS = %w[runfiles srcfiles binfiles docfiles]
 
     # List of tags which defines list of licenses.
-    LICENSE_TAGS = [{name: "catalogue-license",
+    LICENSE_TAGS = [{name:       "catalogue-license",
                      var_symbol: "catalogue_licenses"}]
+
+    CATEGORY_TAGS = %w[category]
 
     ALL_TAGS_DATA_TYPE = {
       single:   {keys: SINGLE_TAGS, type: String?},
@@ -499,6 +519,7 @@ module TLpsrc2spec
       files:    {keys: FILES_TAGS, type: Array(Files)},
       words:    {keys: WORDS_TAGS, type: Array(String)},
       licenses: {keys: LICENSE_TAGS, type: Array(License)},
+      category: {keys: CATEGORY_TAGS, type: Category},
     }
 
     {% begin %}
@@ -649,6 +670,9 @@ module TLpsrc2spec
     end
 
     class InvalidLicenseError < ParseError
+    end
+
+    class InvalidCategoryError < ParseError
     end
 
     class Parser
@@ -805,6 +829,42 @@ module TLpsrc2spec
         data.dup
       end
 
+      private def get_category_data(data : IO::Memory)
+        if data.size > 0
+          slice = Bytes.new(data.buffer, data.size)
+          sio = StringCase::Single.new(slice, false)
+          sio.pos = 0
+          StringCase.strcase(complete: true) do
+            case sio
+            when "TLCore", "TLCore\n"
+              Category::TLCore
+            when "Package", "Package\n"
+              Category::Package
+            when "Collection", "Collection\n"
+              Category::Collection
+            when "ConTeXt", "ConTeXt\n"
+              Category::ConTeXt
+            when "Scheme", "Scheme\n"
+              Category::Scheme
+            else
+              sio.pos = 0
+              msg = String.build do |io|
+                io << "Unrecognized TLPDB category: "
+                IO.copy(sio, io)
+                @buf.debug_cursor(io)
+              end
+              raise InvalidCategoryError.new(msg)
+            end
+          end
+        else
+          msg = String.build do |io|
+            io << "Empty TLPDB category found\n"
+            @buf.debug_cursor(io)
+          end
+          raise InvalidCategoryError.new(msg)
+        end
+      end
+
       private def add_package
         {% begin %}
           data = {
@@ -838,6 +898,10 @@ module TLpsrc2spec
       end
 
       private def process_integer(sym : Symbol)
+        process_single(sym)
+      end
+
+      private def process_category(sym : Symbol)
         process_single(sym)
       end
 
@@ -1262,23 +1326,23 @@ module TLpsrc2spec
             when "cc0"
               lst << License::CC0
             when "gpl3+"
-              lst << License::GPLv3p
+              lst << License::GPL_v3_p
             when "gpl3"
-              lst << License::GPLv3
+              lst << License::GPL_v3
             when "gpl2+"
-              lst << License::GPLv2p
+              lst << License::GPL_v2_p
             when "gpl2"
-              lst << License::GPLv2
+              lst << License::GPL_v2
             when "gpl1+"
-              lst << License::GPLv1p
+              lst << License::GPL_v1_p
             when "gpl1"
-              lst << License::GPLv1
+              lst << License::GPL_v1
             when "gpl"
               lst << License::GPL
             when "lgpl2.1"
-              lst << License::LGPLv2_1
+              lst << License::LGPL_v2_1
             when "lgpl3"
-              lst << License::LGPLv3
+              lst << License::LGPL_v3
             when "lgpl"
               lst << License::LGPL
             when "isc"
@@ -1300,17 +1364,17 @@ module TLpsrc2spec
             when "gfsl"
               lst << License::GFSL
             when "lppl1.3a"
-              lst << License::LPPLv1_3a
+              lst << License::LPPL_v1_3a
             when "lppl1.3b"
-              lst << License::LPPLv1_3b
+              lst << License::LPPL_v1_3b
             when "lppl1.3c"
-              lst << License::LPPLv1_3c
+              lst << License::LPPL_v1_3c
             when "lppl1.3"
-              lst << License::LPPLv1_3
+              lst << License::LPPL_v1_3
             when "lppl1.2"
-              lst << License::LPPLv1_2
+              lst << License::LPPL_v1_2
             when "lppl1"
-              lst << License::LPPLv1
+              lst << License::LPPL_v1
             when "lppl"
               lst << License::LPPL
             when "ofl"
