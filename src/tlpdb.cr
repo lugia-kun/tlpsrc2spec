@@ -142,6 +142,8 @@ module TLpsrc2spec
     end
 
     # Categories
+    #
+    # List of categories can be found on TLConfig.pm.
     enum Category
       # Core package of TeX Live
       TLCore

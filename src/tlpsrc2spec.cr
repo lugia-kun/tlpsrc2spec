@@ -1,5 +1,5 @@
 require "colorize"
-require "logger"
+require "log"
 require "option_parser"
 require "rpm"
 require "./tlpdb"
@@ -14,28 +14,24 @@ require "./generator"
 module TLpsrc2spec
   VERSION = "0.1.0"
 
-  FORMATTER = Logger::Formatter.new do |severity, datetime, progname, mesg, io|
-    if progname.size > 0
-      io << progname << ": "
-    end
-    if severity >= Logger::Severity::ERROR
+  FORMATTER = Log::Formatter.new do |entry, io|
+    if entry.severity >= Log::Severity::Error
       color = :red
-    elsif severity >= Logger::Severity::WARN
+    elsif entry.severity >= Log::Severity::Warning
       color = :yellow
-    elsif severity >= Logger::Severity::INFO
+    elsif entry.severity >= Log::Severity::Info
       color = :green
     end
-    if color
+    if io.tty? && color
       io << String.build do |sb|
-        sb << severity.to_s.downcase
+        sb << entry.severity.to_s.downcase
         sb << ": "
-        sb << mesg
+        sb << entry.message
       end.colorize(color)
     else
-      io << severity.to_s.downcase << ": " << mesg
+      io << entry.severity.to_s.downcase << ": " << entry.message
     end
   end
-  LEVEL = Logger::Severity::INFO
 
   PREFIX         = RPM["_prefix"]
   DATADIR        = RPM["_datadir"]
@@ -356,17 +352,17 @@ module TLpsrc2spec
     def self.create(tlpdb_file : String, template_specfile : String,
                     installed : Array(String), **opts)
       @@verbose = opts[:verbose]? || false
-      log.info "Reading TLPDB #{tlpdb_file}..."
+      log.info { "Reading TLPDB #{tlpdb_file}..." }
       tlpdb = File.open(tlpdb_file, "r") do |fp|
         TLPDB.parse(fp)
       end
 
       installed = installed.map do |specfile|
-        log.info "Reading Spec file #{specfile}..."
+        log.info { "Reading Spec file #{specfile}..." }
         RPM::Spec.open(specfile)
       end
 
-      log.info "Reading Spec file #{template_specfile}..."
+      log.info { "Reading Spec file #{template_specfile}..." }
       template_test = IO::Memory.new
       tempfile = File.tempfile("template", ".spec")
       template_data =
@@ -387,11 +383,11 @@ module TLpsrc2spec
       SpecGenerator.parse_template(template_test) do
         # NOP.
       end
-      self.new(tlpdb, template_specfile, template_data, installed)
+      self.new(tlpdb, template_specfile, template_data, installed, opts[:topdir]?)
     end
 
-    def initialize(@tlpdb, @template, @template_data, @installed)
-      @installed_db = InstalledPackageDB.new(@installed, log)
+    def initialize(@tlpdb, @template, @template_data, @installed, topdir)
+      @installed_db = InstalledPackageDB.new(@installed, topdir)
     end
 
     def log
@@ -413,14 +409,18 @@ module TLpsrc2spec
   @@tlpdb_file : String? = nil
   @@template_specfile : String? = nil
   @@installed_specfile : Array(String) = [] of String
-  @@log : Logger = Logger.new(STDERR, LEVEL, FORMATTER)
   @@output : String | IO = STDOUT
+  @@topdir : String? = nil
+  @@logout : String? = nil
+
+  DEFAULT_LOG_LEVEL = (Log::Severity.parse?(ENV.fetch("CRYSTAL_LOG_LEVEL", "")) || Log::Severity::Info).value
 
   def self.log
-    @@log
+    Log
   end
 
   def self.main(rule : Rule.class, argv = ARGV)
+    level = DEFAULT_LOG_LEVEL
     opts = OptionParser.new do |opts|
       opts.banner = "Usage: tlpsrc2spec --tlpdb=[TLPDB] --template=[Template] --installed=[current]"
       opts.on("-t", "--tlpdb=FILE", "TeX Live Package Database file") do |tlp|
@@ -435,11 +435,23 @@ module TLpsrc2spec
       opts.on("-o", "--output=FILE", "Output spec file name") do |path|
         @@output = path
       end
+      opts.on("-P", "--topdir=DIR", "Read packages from given path") do |path|
+        @@topdir = path
+      end
+      opts.on("-L", "--log=NAME", "Log file output name") do |path|
+        @@logout = path
+      end
       opts.on("-v", "--verbose", "Be Verbose") do
-        @@log.level -= 1
+        nlevel = level - 1
+        if Log::Severity.valid?(Log::Severity.new(nlevel))
+          level = nlevel
+        end
       end
       opts.on("-q", "--quiet", "Be Quiet") do
-        @@log.level += 1
+        nlevel = level + 1
+        if Log::Severity.valid?(Log::Severity.new(nlevel))
+          level = nlevel
+        end
       end
       opts.on("-h", "--help", "Show this help") do
         STDERR.print opts
@@ -448,18 +460,30 @@ module TLpsrc2spec
     end
 
     opts.parse(argv)
+    slevel = Log::Severity.new(level)
+    Log.builder.clear
+    backend = Log::IOBackend.new
+    backend.formatter = FORMATTER
+    Log.builder.bind "*", slevel, backend
+
+    if (logfile = @@logout)
+      fp = File.open(logfile, "w")
+      file_backend = Log::IOBackend.new(fp)
+      file_backend.formatter = FORMATTER
+      Log.builder.bind "*", slevel, file_backend
+    end
 
     tlpdb = @@tlpdb_file
     spec = @@template_specfile
     base = @@installed_specfile
     if tlpdb && spec && base
-      app = TLpsrc2spec::Application.create(tlpdb, spec, base)
+      app = TLpsrc2spec::Application.create(tlpdb, spec, base, topdir: @@topdir)
       app.main(@@output, rule)
       0
     else
-      @@log.error "TLPDB file not given" unless tlpdb
-      @@log.error "Template specfile not given" unless spec
-      @@log.error "Installed specfile not given" unless base
+      Log.error { "TLPDB file not given" } unless tlpdb
+      Log.error { "Template specfile not given" } unless spec
+      Log.error { "Installed specfile not given" } unless base
       STDERR.puts opts
       1
     end

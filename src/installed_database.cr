@@ -1,10 +1,10 @@
+require "log"
 require "rpm"
 
 module TLpsrc2spec
   class InstalledPackageDB
     # Base spec data for information and searching files
     @base : Array(RPM::Spec)
-    @log : Logger
     @topdir : String?
 
     # Name to package data table
@@ -53,11 +53,11 @@ module TLpsrc2spec
       end
     end
 
-    def initialize(@base, @log, @topdir)
+    def initialize(@base, @topdir)
     end
 
     private def add_pkg(pkg : RPM::Package)
-      @log.debug { "Adding #{pkg.name} to installed file database" }
+      Log.debug { "Adding #{pkg.name} to installed file database" }
       version = pkg[RPM::Tag::Version].as(String)
       release = pkg[RPM::Tag::Release].as(String)
       epoch = pkg[RPM::Tag::Epoch]?.as(UInt32?)
@@ -114,15 +114,15 @@ module TLpsrc2spec
     end
 
     private def build_pkgs
-      @log.debug { "Start building installed packages table" }
+      Log.debug { "Start building installed packages table" }
       each_base_package do |pkg|
         add_pkg(pkg)
       end
-      @log.debug { "Searching texmf directory" }
+      Log.debug { "Searching texmf directory" }
       [OLDTEXMFDISTDIR, OLDTEXMFDIR, OLDTEXMFCONFIGDIR, OLDTEXMFVARDIR].each do |dir|
         search_files(dir)
       rescue e : RuntimeError
-        @log.error { e.to_s }
+        Log.error { e.to_s }
       end
       @pkgs
     end
@@ -158,7 +158,7 @@ module TLpsrc2spec
     def filepath(path : String)
       build_pkgs_if_needed
       if !@filepaths.has_key?(path)
-        @log.debug { "Searching packages contains path '#{path}'" }
+        Log.debug { "Searching packages contains path '#{path}'" }
         RPM.transaction do |ts|
           iter = ts.init_iterator(RPM::DbiTag::BaseNames, path)
           begin
@@ -182,7 +182,7 @@ module TLpsrc2spec
         @files[name]? || Set(String).new
       else
         if !@files.has_key?(name)
-          @log.debug { "Searching packages contains filename '#{name}'" }
+          Log.debug { "Searching packages contains filename '#{name}'" }
           RPM.transaction do |ts|
             iter = ts.init_iterator
             begin

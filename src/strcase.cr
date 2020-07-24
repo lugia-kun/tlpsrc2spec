@@ -161,7 +161,7 @@ module StringCase
       end
       cursor = self.pos
       cursor_line = lines.reduce({cursor, 0}) do |i, s|
-        break -1   if i[0] < 0
+        break -1 if i[0] < 0
         break i[1] if i[0] <= s.size
         {i[0] - s.size - 1, i[1] + 1}
       end

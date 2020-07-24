@@ -8,7 +8,7 @@ module TLpsrc2spec
     def initialize(@app)
     end
 
-    abstract def collect : Void
+    abstract def collect
     abstract def master_package : Package
 
     def self.log
