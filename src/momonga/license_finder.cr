@@ -252,7 +252,7 @@ struct TLpsrc2spec::MomongaRule::LicenseFinder
         return nil
       end
     end
-    found.not_nil!  # not_nil! is just assertion. the method may return nil
+    found.not_nil! # not_nil! is just assertion. the method may return nil
   end
 
   def make_momonga_license_expression(found = result)
@@ -313,20 +313,20 @@ struct TLpsrc2spec::MomongaRule::LicenseFinder
             end
           end
         end
+      {% elsif extra_names %}
+        %extra_names_set = {{extra_names}}.to_set
+        %extra_names_checker = -> (file : TLPDB::PathInfo, io : StringCase::Single) do
+          %possave = io.pos
+          %bname = io.gets_to_end
+          if %extra_names_set.includes?(%bname)
+            {{finder}}::Candidate.new(file, {{finder}}::Category::Extra, %bname)
+          else
+            nil
+          end
+        end
       {% else %}
         %extra_names_checker = -> (file : TLPDB::PathInfo, io : StringCase::Single) do
-          {% if extra_names && !extra_names.empty? %}
-            %possave = io.pos
-            %bname = io.gets_to_end
-            case %bname
-            when {{extra_names.splat}}
-              {{finder}}::Candidate.new(file, {{finder}}::Category::Extra, %bname)
-            else
-              nil
-            end
-          {% else %}
-            nil
-          {% end %}
+          nil
         end
       {% end %}
       %finder = {{finder}}.new({{tlpkg}}, {{licenses}}, {{**args}})
