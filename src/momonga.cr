@@ -681,6 +681,9 @@ module TLpsrc2spec
             # I don't origin of these files.
             return find_license_file(tlpkg, tlpdb_licenses,
               extra_names: ["omega.sty"])
+          when "latexconfig"
+            return find_license_file(tlpkg, tlpdb_licenses,
+              extra_names: ["latex.ini"])
           when "latexcourse-rug"
             # See https://ctan.org/pkg/latexcourse-rug
             return find_license_file(tlpkg, tlpdb_licenses,
@@ -808,7 +811,7 @@ module TLpsrc2spec
               tlpkg = app.tlpdb["cjk"]
               return parse_license(tlpkg, tlpkg.catalogue_licenses)
             end
-          when "npp-for-nontext"
+          when "npp-for-context"
             # See https://ctan.org/pkg/npp-for-context
             # See https://github.com/luigiScarso/context-npp
             #
@@ -837,6 +840,9 @@ module TLpsrc2spec
             # See https://ctan.org/pkg/path
             return find_license_file(tlpkg, tlpdb_licenses,
               extra_names: ["path.sty"])
+          when "pdfwin"
+            return find_license_file(tlpkg, tlpdb_licenses,
+                                     extra_names: ["pdfwin.sty"])
           when "pictexsum"
             # See https://ctan.org/pkg/pictexsum
             return find_license_file(tlpkg, tlpdb_licenses,
@@ -891,10 +897,10 @@ module TLpsrc2spec
             # See https://ctan.org/pkg/dvibook
             #     log.warn { "License of dvibook unknown" }
             #     return "see \"README\""
-          when "shapaper"
+          when "shapepar"
             # See https://ctan.org/tex-archive/macros/latex/contrib/shapepar
             return find_license_file(tlpkg, tlpdb_licenses,
-              extra_names: ["README.shapaper"])
+              extra_names: ["README.shapepar"])
           when "slideshow"
             # See https://ctan.org/pkg/slideshow
             return find_license_file(tlpkg, tlpdb_licenses,
@@ -1002,15 +1008,15 @@ module TLpsrc2spec
           when "webguide"
             # See https://ctan.org/pkg/webguide
             return find_license_file(tlpkg, tlpdb_licenses,
-                                     extra_names: ["README"])
+              extra_names: ["README"])
           when "wsuipa"
             # See https://ctan.org/tex-archive/fonts/wsuipa
             return find_license_file(tlpkg, tlpdb_licenses,
-                                     extra_names: ["LICENCE-wsuipa.txt"])
+              extra_names: ["LICENCE-wsuipa.txt"])
           when "xcharter"
             # See https://ctan.org/pkg/xcharter
             return find_license_file(tlpkg, tlpdb_licenses,
-                                     extra_names: ["README"])
+              extra_names: ["README"])
           when "xdvi"
             # See https://ctan.org/pkg/xdvi
             #     log.warn { "License of xdvi unknown" }
@@ -1021,11 +1027,11 @@ module TLpsrc2spec
               tlpdb_licenses << TLPDB::License::PublicDomain
             end
           when "xetex"
-            pp! tlpdb_name_stream.eof?
+            pp! tlpdb_name_stream.gets_to_end
             # According to `xetex -version`
             return find_license_file(tlpkg, tlpdb_licenses,
-                                     extra_names: ["COPYING"]) ||
-                   "see \"COPYING\""
+              extra_names: ["COPYING"]) ||
+              "see \"COPYING\""
           when "xmltexconfig"
             # See xmltex.ini
             if tlpdb_licenses.empty?
@@ -1034,11 +1040,11 @@ module TLpsrc2spec
           when "yfonts-t1"
             # See https://ctan.org/tex-archive/fonts/ps-type1/yfonts
             return find_license_file(tlpkg, tlpdb_licenses,
-                                     extra_names: ["README"])
+              extra_names: ["README"])
           when "zed-csp"
             # See https://ctan.org/tex-archive/macros/latex/contrib/zed-csp
             return find_license_file(tlpkg, tlpdb_licenses,
-                                     extra_names: ["zed-csp.sty"])
+              extra_names: ["zed-csp.sty"])
           end
         end
       end

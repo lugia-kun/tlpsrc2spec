@@ -4,16 +4,111 @@ require "./test"
 include TLpsrc2spec
 
 TEST_LICENSES = [
-  TLpsrc2spec::TLPDB::License::GPLv1,
+  TLpsrc2spec::TLPDB::License::GPL_v1,
   TLpsrc2spec::TLPDB::License::LGPL,
-  TLpsrc2spec::TLPDB::License::LPPLv1_3c,
+  TLpsrc2spec::TLPDB::License::LPPL_v1_3c,
 ]
 TEST2_LICENSES = [
-  TLpsrc2spec::TLPDB::License::GPLv1,
-  TLpsrc2spec::TLPDB::License::LPPLv1_3b,
+  TLpsrc2spec::TLPDB::License::GPL_v1,
+  TLpsrc2spec::TLPDB::License::LPPL_v1_3b,
   TLpsrc2spec::TLPDB::License::BSD,
   TLpsrc2spec::TLPDB::License::PublicDomain,
 ]
+
+describe StringCase do
+  it "expands" do
+    test = StringCase::Single.new("teststr")
+    ret = StringCase.strcase(complete: true) do
+      case test
+      when "te"
+        1
+      when "test"
+        2
+      when "testxxxx"
+        3
+      else
+        4
+      end
+    end
+    ret.should eq(4)
+
+    test.pos = 0
+    ret = StringCase.strcase do
+      case test
+      when "te"
+        1
+      when "test"
+        2
+      when "testxxxx"
+        3
+      else
+        4
+      end
+    end
+    ret.should eq(2)
+    test.gets_to_end.should eq("str")
+
+    test = StringCase::Single.new("TeSt")
+    ret = StringCase.strcase(complete: true) do
+      case test
+      when "te"
+        1
+      when "test"
+        2
+      when "testxxxx"
+        3
+      else
+        4
+      end
+    end
+    ret.should eq(4)
+
+    test.pos = 0
+    ret = StringCase.strcase(case_insensitive: true) do
+      case test
+      when "te"
+        1
+      when "testaa"
+        2
+      when "testxxxx"
+        3
+      else
+        4
+      end
+    end
+    ret.should eq(1)
+
+    test.pos = 0
+    ret = StringCase.strcase(case_insensitive: true) do
+      case test
+      when "te"
+        1
+      when "test"
+        2
+      when "testxxxx"
+        3
+      else
+        4
+      end
+    end
+    ret.should eq(2)
+
+    test.pos = 0
+    ret = StringCase.strcase(case_insensitive: true, complete: true) do
+      case test
+      when "te"
+        1
+      when "test"
+        2
+      when "testxxxx"
+        3
+      else
+        4
+      end
+    end
+    ret.should eq(2)
+  end
+end
 
 describe TLpsrc2spec::TLPDB do
   it "parses sample" do
@@ -29,7 +124,7 @@ describe TLpsrc2spec::TLPDB do
     end
     test = db["test"]
     test.name.should eq("test")
-    test.category.should eq("coll")
+    test.category.should eq(TLpsrc2spec::TLPDB::Category::TLCore)
     test.depends.should eq(%w[a b c d])
     date = test.catalogue_date
     date.should_not be_nil
@@ -63,7 +158,8 @@ describe TLpsrc2spec::TLPDB do
     end
     test = db[name: {TLPDB::ValueQuery::StartsWith, "test"}]
     test.map(&.name).should eq(%w[test test2])
-    test.map(&.category).should eq(%w[coll coll])
+    test.map(&.category).should eq([TLpsrc2spec::TLPDB::Category::TLCore,
+                                    TLpsrc2spec::TLPDB::Category::TLCore])
     test.map(&.revision).should eq([1000, 100])
     test.map(&.longdesc).should eq([nil, <<-LONGDESC])
 foo blah blah

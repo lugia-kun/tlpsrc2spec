@@ -1,5 +1,5 @@
 name test
-category coll
+category TLCore
 depend a b
 depend c
 depend d
@@ -12,7 +12,7 @@ binfiles size=1 arch=x86_64-linux
  bin/tex
 
 name test2
-category coll
+category TLCore
 longdesc foo blah blah
 longdesc bar
 longdesc baz
@@ -24,7 +24,7 @@ runfiles
  texmf/tex/latex/test/test.sty
 
 name bar
-category package
+category Package
 revision 0
 catalogue-date 2019-01-01 01:00:00 +02:00
 runfiles 

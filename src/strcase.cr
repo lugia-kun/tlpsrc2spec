@@ -292,12 +292,26 @@ module StringCase
           {% end %}
         {% end %}
     else
-      {% if depth > 0 %}
-        {{case_io}}.cursor = {{case_io}}.marker
-      {% end %}
       {% if has_end_here %}
-        {{has_end_here.id}}
+        {% if test_eof %}
+          if {{case_io}}.eof?
+            {{has_end_here.id}}
+          else
+            {% if depth > 0 %}
+              {{case_io}}.cursor = {{case_io}}.marker
+            {% end %}
+            {{not_matched.id}}
+          end
+        {% else %}
+          {% if depth > 0 %}
+            {{case_io}}.cursor = {{case_io}}.marker
+          {% end %}
+          {{has_end_here.id}}
+        {% end %}
       {% else %}
+        {% if depth > 0 %}
+          {{case_io}}.cursor = {{case_io}}.marker
+        {% end %}
         {{not_matched.id}}
       {% end %}
     end
@@ -321,7 +335,6 @@ module StringCase
       {% end %}
       {% case_insensitive = options[:case_insensitive] || false %}
       {% test_eof = options[:complete] || false %}
-      {% print_debug = options[:debug] || false %}
       {% obj = case_stmt.cond %}
       {% whens = case_stmt.whens %}
       {% not_matched = case_stmt.else %}
@@ -345,9 +358,6 @@ module StringCase
       ::StringCase.make_recursive_case({{obj}}, 0, {{test_eof}},
                                        {{case_insensitive}},
                                        {{not_matched}}, {{lists.splat}})
-      {% if print_debug %}
-        {% debug %}
-      {% end %}
     ensure
       {{obj}}.marker = -1
     end
