@@ -9,11 +9,11 @@ require "./momonga/license_finder"
 
 module TLpsrc2spec
   class MomongaRule < Rule
-    VERSION = "2019-5m"
+    VERSION = "2020-1m"
 
     # Whether generate (compute requires) texlive-japanese-recommended
     # package, which is maintained by texlive-metapackages specfile.
-    GENERATE_JAPANESE_RECOMMENDED = false
+    GENERATE_JAPANESE_RECOMMENDED = true
 
     class Package < TLpsrc2spec::Package
       def group
@@ -609,7 +609,7 @@ module TLpsrc2spec
           when "hyphen-turkish"
             # See https://ctan.org/pkg/tkhyph
             return find_license_file(tlpkg, tlpdb_licenses,
-              extra_names: ["tkhyph.tex"])
+              extra_names: ["hyph-tr.tex"])
           when "hyphenex"
             # See https://ctan.org/pkg/hyphenex
             return find_license_file(tlpkg, tlpdb_licenses,
@@ -842,7 +842,7 @@ module TLpsrc2spec
               extra_names: ["path.sty"])
           when "pdfwin"
             return find_license_file(tlpkg, tlpdb_licenses,
-                                     extra_names: ["pdfwin.sty"])
+              extra_names: ["pdfwin.sty"])
           when "pictexsum"
             # See https://ctan.org/pkg/pictexsum
             return find_license_file(tlpkg, tlpdb_licenses,
@@ -1099,38 +1099,54 @@ module TLpsrc2spec
     end
 
     def package_name_from_tlpdb_name(name : String)
-      case name
-      when /^00texlive/
-        nil
-      when /^texlive-scripts/
-        nil
-      when /^texlive\.infra\./
-        nil
-      when "collection-wintools"
-        nil
-      when "collection-texworks", "texworks"
-        # TL does not provide TeXworks for UNIX-like OSs.
-        nil
-      when /^psutils/, /^t1utils/
-        nil
-      when "axessibility", "guide-latex-fr" # License issue.
-        nil
-      when /^(.*)\.([^\.]+)$/
-        if $2.ends_with?("-linux")
-          bin_name = String.build { |x| x << $1 << "-bin" }
-          add_texlive_prefix_if_required(bin_name)
-        elsif !arch_name?($2)
+      n = StringCase::Single.new(name)
+      StringCase.strcase do
+        case n
+        when "00texlive"
+          return nil
+        when "collection-wintools"
+          return nil
+        when "collection-texworks", "texworks"
+          # TL does not provide TeXworks for UNIX-like OSs.
+          return nil
+        when "texlive.infra"
+          return package_name_from_tlpdb_name("texlive-infra")
+        when "psutils", "t1utils"
+          return nil
+        when "axessibility", "guide-latex-fr" # License issue.
+          if n.eof?
+            return nil
+          end
+        else
+        end
+      end
+      n.pos = 0
+      ldot = nil
+      while (ch = n.next_char)
+        if ch == '.'
+          ldot = n.pos
+        end
+      end
+      if ldot
+        n.pos = 0
+        bname = n.gets(ldot - 1)
+        n.next_char
+        aname = n.gets_to_end
+        if aname.ends_with?("-linux")
+          bin_name = String.build { |x| x << bname << "-bin" }
+          return add_texlive_prefix_if_required(bin_name)
+        elsif !arch_name?(aname)
           log.warn do
             String.build do |x|
               x << "Package name with dot(s): " << name
             end
           end
-          add_texlive_prefix_if_required(name)
+          return add_texlive_prefix_if_required(name)
         else
-          nil
+          return nil
         end
       else
-        add_texlive_prefix_if_required(name)
+        return add_texlive_prefix_if_required(name)
       end
     end
 
@@ -1434,6 +1450,7 @@ module TLpsrc2spec
         # Arch dependent packages (includes executable/library binary
         # files) should include base tlpkg to get license info.
         if archdeppkg
+          tlpkgs = tlpkgs.dup
           tlpkgs << archdeppkg
         end
 
@@ -1455,6 +1472,7 @@ module TLpsrc2spec
                 pkg.license << lics
               end
             else
+              Log.error { "Failed to determine the license of #{tlpkg.name}" }
               stat = true
             end
           end
@@ -1668,7 +1686,7 @@ module TLpsrc2spec
             base = pathparser.gets_to_end
             pathparser.pos = pos_save
             xpath = File.join(BINDIR, base)
-            StringCase.strcase do
+            StringCase.strcase(complete: true) do
               case pathparser
               when "man", "teckit_compile", "tlmgr", "rungs"
                 skip = true
@@ -2451,7 +2469,8 @@ module TLpsrc2spec
                        "AUTHORS", "BACKLOG", "FONTLOG", "FAQ", "ANNOUNCE",
                        "NOTICE", "HISTORY", "MANIFEST", "00readme",
                        "LISTOFFILES", "LIESMICH", "RELEASE", "CATALOG",
-                       "LISEZMOI", "READ.ME", "01install"
+                       "LISEZMOI", "READ.ME", "01install", "CONTRIBUTING",
+                       "CONTRIBUTORS"
                     nil
                     # License filename
                   when "OFL", "GPL", "lppl", "fdl", "GUST-FONT-LICENSE"
@@ -2621,6 +2640,12 @@ module TLpsrc2spec
                       # dozenal / misc (seems unrelated)
                     when "gray.tfm"
                       nil
+                      # asymptote
+                    when "tiling.asy"
+                      nil
+                      # dashundergaps / fewerfloatpages
+                    when "l3doc-TUB.cls"
+                      nil
                       # bibtopic / latex-bib[2]-ex / biblatex-philosophy
                     when "articles.bib", "natbib.cfg", "de-examples-dw.bib",
                          "philosophy-examples.bib", "biblatex-examples.bib"
@@ -2643,6 +2668,23 @@ module TLpsrc2spec
                     when "ltxgrid.pdf", "ltxutil.pdf", "docs.sty",
                          "ltxdocext.pdf", "ltxfront.pdf", "fig_1.eps",
                          "fig_2.eps", "apssamp.tex", "apssamp.bib"
+                      nil
+                      # quran
+                    when "quran.png"
+                      nil
+                      # unifith / sapthesis
+                    when "Laurea.tex"
+                      nil
+                      # thesis-qom / yazd-thesis
+                    when "Print-PDF.png", "test-crop.jpg"
+                      nil
+                      # tabriz-thesis / yazd-thesis
+                    when "chapter1.tex", "chapter2.tex", "chapter3.tex",
+                         "dicen2fa.tex", "dicfa2en.tex"
+                      nil
+                      # apa6 / apa7
+                    when "Figure1.pdf", "longsample.tex", "longsample.pdf",
+                         "shortsample.tex", "shortsample.pdf"
                       nil
                       # generic names used by many packages.
                     when "layout.pdf", "introduction.tex", "index.html",
@@ -2688,7 +2730,13 @@ module TLpsrc2spec
                          "graphic.tex", "article.tex", "publications.pdf",
                          "user-guide.tex", "table.pdf", "textmerg.tex",
                          "tipa.bib", "seminar.con", "perso.ist", "urlbst",
-                         "buch.tex"
+                         "buch.tex", "specimen.pdf", "y.tex", "body.tex",
+                         "Makefile.doc", "literatur.bib",
+                         "derivative.tex", "settings.tex", "thesis.pdf",
+                         "reference.bib", "acknowledgements.tex",
+                         "titlepage.tex", "fonttable.pdf", "review.tex",
+                         "discussion.tex", "methods.tex", "spine.tex",
+                         "tiger.pdf", "specimen.tex", "MyReferences.bib"
                       nil
                     else
                       path = found[0]
