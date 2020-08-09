@@ -30,7 +30,8 @@ module TLpsrc2spec
     TEXMF           = [TEXMFDIR, TEXMFLOCALDIR, TEXMFVARDIR, TEXMFCONFIGDIR]
 
     HOOK_FILES = {
-      File.join(TEXLIVE_HOOKDIR, "run-updmap") => "%{_updmap_hook}",
+      File.join(TEXLIVE_HOOKDIR, "run-updmap.enable") => "%{_updmap_hook_enable}",
+      File.join(TEXLIVE_HOOKDIR, "run-updmap.disable") => "%{_updmap_hook_disable}",
     }
 
     {% begin %}
@@ -1110,7 +1111,8 @@ module TLpsrc2spec
           # TL does not provide TeXworks for UNIX-like OSs.
           return nil
         when "texlive.infra"
-          return package_name_from_tlpdb_name("texlive-infra")
+          rem = n.gets_to_end
+          return package_name_from_tlpdb_name("texlive-infra" + rem)
         when "psutils", "t1utils"
           return nil
         when "axessibility", "guide-latex-fr" # License issue.
@@ -1374,8 +1376,7 @@ module TLpsrc2spec
           if pkg.summary.nil?
             if pkg.archdep?
               n = tlpkg.name.not_nil!
-              ni = n.byte_index('.'.ord)
-              archdepname = n[0...ni]
+              archdepname, _, _ = n.rpartition('.')
               summary = String.build do |io|
                 io << "Binary files for TeX Live Package '"
                 io << archdepname
@@ -1690,15 +1691,6 @@ module TLpsrc2spec
               case pathparser
               when "man", "teckit_compile", "tlmgr", "rungs"
                 skip = true
-              when "lualatex"
-                if !exclude
-                  luajitlatex = File.join(BINDIR, "luajitlatex")
-                  log.info {
-                    "Adding '#{luajitlatex}' to #{pkg.name} (TL: #{tlpkg.name})"
-                  }
-                  e = FileEntry.new(luajitlatex, tlpdb_tag: tag)
-                  pkg.files << e
-                end
               when "biber"
                 if !exclude
                   create_biber_module_package(tlpkg, pkg)
@@ -2957,6 +2949,7 @@ module TLpsrc2spec
     end
 
     def set_master_info
+      Log.info { "Setting informations of master package" }
       @master.summary = "The TeX Live text formatting system"
       @master.description = <<-EOD
       The TeX Live software distribution offers a complete TeX system for a
@@ -3173,6 +3166,7 @@ module TLpsrc2spec
     end
 
     def add_script
+      Log.info { "Adding scripts..." }
       fspkg = packages("texlive-filesystem")
       each_package do |pkg|
         add_mktexlsr_script(pkg, fspkg)
