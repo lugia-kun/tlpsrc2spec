@@ -17,7 +17,7 @@ module TLpsrc2spec
   FORMATTER = Log::Formatter.new do |entry, io|
     if entry.severity >= Log::Severity::Error
       color = :red
-    elsif entry.severity >= Log::Severity::Warning
+    elsif entry.severity >= Log::Severity::Warn
       color = :yellow
     elsif entry.severity >= Log::Severity::Info
       color = :green
