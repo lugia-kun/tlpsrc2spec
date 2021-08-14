@@ -9,7 +9,7 @@ require "./momonga/license_finder"
 
 module TLpsrc2spec
   class MomongaRule < Rule
-    VERSION = "2020-1m"
+    VERSION = "2021-1m"
 
     # Whether generate (compute requires) texlive-japanese-recommended
     # package, which is maintained by texlive-metapackages specfile.
@@ -679,9 +679,15 @@ module TLpsrc2spec
             return find_license_file(tlpkg, tlpdb_licenses,
               extra_names: ["l2tabuit.tex"])
           when "lambda"
-            # I don't origin of these files.
+            # I don't know the origin of these files.
             return find_license_file(tlpkg, tlpdb_licenses,
               extra_names: ["omega.sty"])
+          when "latex2e-help-texinfo"
+            # See https://ctan.org/tex-archive/info/latex2e-help-texinfo
+            return find_license_file(tlpkg, tlpdb_licenses) || "GFDL"
+          when "latex2e-help-texinfo-spanish"
+            # See https://ctan.org/tex-archive/info/latex2e-help-texinfo
+            return find_license_file(tlpkg, tlpdb_licenses) || "GFDL"
           when "latexconfig"
             return find_license_file(tlpkg, tlpdb_licenses,
               extra_names: ["latex.ini"])
@@ -1991,7 +1997,7 @@ module TLpsrc2spec
           add_file(asy, path, doc: true, tlpdb_tag: TLPDB::Tag::DOCFILES)
         end
 
-        updmap = packages("texlive-updmap-map")
+        updmap = packages("texlive-texlive-scripts")
         [
           File.join(TEXMFVARDIR, "/web2c/updmap.log"),
           File.join(TEXMFVARDIR, "/fonts/map/dvips/updmap/download35.map"),
