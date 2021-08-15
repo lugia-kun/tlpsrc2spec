@@ -30,7 +30,7 @@ module TLpsrc2spec
     TEXMF           = [TEXMFDIR, TEXMFLOCALDIR, TEXMFVARDIR, TEXMFCONFIGDIR]
 
     HOOK_FILES = {
-      File.join(TEXLIVE_HOOKDIR, "run-updmap.enable") => "%{_updmap_hook_enable}",
+      File.join(TEXLIVE_HOOKDIR, "run-updmap.enable")  => "%{_updmap_hook_enable}",
       File.join(TEXLIVE_HOOKDIR, "run-updmap.disable") => "%{_updmap_hook_disable}",
     }
 
@@ -2844,6 +2844,19 @@ module TLpsrc2spec
         RPM::Sense::EQUAL, nil)
       tetex = packages("texlive-scheme-tetex")
       tetex.add_provide(prov_tetex_3)
+
+      # Not collected on the first introduction of this system (2019-1m)
+      obso_kpathsea_devel = RPM::Obsolete.new("kpathsea-devel",
+        RPM::Version.new("3.5.6"),
+        RPM::Sense::LESS | RPM::Sense::EQUAL, nil)
+      obsolete_if_not("texlive-kpathsea-devel", obso_kpathsea_devel, log: true)
+
+      # The language code that used in the file name has been changed
+      # (fixed) and thus their file names are not matched.
+      obso_lshort_ko = RPM::Obsolete.new("texlive-texmf-lshort-korean",
+        RPM::Version.new("2010-29m"),
+        RPM::Sense::LESS, nil)
+      obsolete_if_not("texlive-lshort-korean", obso_lshort_ko, log: true)
     end
 
     def check_obsoletes
