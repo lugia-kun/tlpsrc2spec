@@ -2968,7 +2968,7 @@ module TLpsrc2spec
       as well as the documentation for the included software packages.
       EOD
       @master.url = "http://www.tug.org/texlive/"
-      @master.version = "2020"
+      @master.version = "2021"
       @master.release = "%{momorel}m%{dist}"
       @master.archdep = true
 
