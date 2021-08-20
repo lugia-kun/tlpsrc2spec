@@ -13,12 +13,16 @@ module TLpsrc2spec
 
     # Whether generate (compute requires) texlive-japanese-recommended
     # package, which is maintained by texlive-metapackages specfile.
-    GENERATE_JAPANESE_RECOMMENDED = true
+    GENERATE_JAPANESE_RECOMMENDED = false
 
     class Package < TLpsrc2spec::Package
       def group
         super || "Applications/Publishing"
       end
+    end
+
+    class FileEntry < TLpsrc2spec::FileEntry
+      property? is_system_font : Bool = false
     end
 
     TEXMFDIR = File.join(DATADIR, "texmf")
@@ -47,6 +51,9 @@ module TLpsrc2spec
           { {{key}}, {{val}} },
         {% end %}
         {TEXLIVE_HOOKDIR, "%{_texlive_hookdir}"},
+        {FONTBASEDIR, "%{_fontbasedir}"},
+        {FONTCONFIG_CONFDIR, "%{_fontconfig_confdir}"},
+        {FONTCONFIG_TEMPLATEDIR, "%{_fontconfig_templatedir}"},
         {BINDIR, "%{_bindir}"},
         {LIBEXECDIR, "%{_libexecdir}"},
         {LIBDIR, "%{_libdir}"},
@@ -1614,8 +1621,8 @@ module TLpsrc2spec
         base = File.basename(apath)
         adir = File.dirname(apath)
         root = "%{buildroot}"
-        destdir = File.join("%{_texmfconfigdir}/", adir)
-        locadir = File.join("%{_texmfdir}/", adir)
+        destdir = File.join("%{_texmfconfigdir}", adir)
+        locadir = File.join("%{_texmfdir}", adir)
         destnam = File.join(destdir, base)
         locanam = File.join(locadir, base)
         str << "%{__mkdir} -p " << root << destdir << "\n"
@@ -1673,6 +1680,97 @@ module TLpsrc2spec
       if dep != old && perl_mod
         log.warn { "Really multiple package requires 'biber' perl Lib?" }
       end
+    end
+
+    def add_fc_t1_excluding_conf(font_package, original_name)
+      conf_exc_t1_name = "%{fc_t1_excluding_num}-#{original_name}.conf"
+      conf_exc_t1 = File.join(FONTCONFIG_CONFDIR, conf_exc_t1_name)
+      temp_exc_t1 = File.join(FONTCONFIG_TEMPLATEDIR, conf_exc_t1_name)
+      unless font_package.files.any? { |x| x.path == conf_exc_t1 }
+        add_file(font_package, temp_exc_t1)
+        add_file(font_package, conf_exc_t1, config: FileConfig.new(missingok: true))
+        script = String.build do |str|
+          str << "%{fc_make_type1_reject_conf " << original_name <<
+            " " << conf_exc_t1_name << "}\n"
+        end
+        font_package.install_script.unshift Script.new(script)
+      end
+    end
+
+    def add_fc_all_excluding_conf(font_package, original_name)
+      conf_exc_all_name = "%{fc_all_excluding_num}-#{original_name}.conf"
+      conf_exc_all = File.join(FONTCONFIG_CONFDIR, conf_exc_all_name)
+      temp_exc_all = File.join(FONTCONFIG_TEMPLATEDIR, conf_exc_all_name)
+      unless font_package.files.any? { |x| x.path == conf_exc_all }
+        add_file(font_package, temp_exc_all)
+        add_file(font_package, conf_exc_all, ghost: true)
+        script = String.build do |str|
+          str << "%{fc_make_all_reject_conf " << original_name <<
+            " " << conf_exc_all_name << "}\n"
+        end
+        font_package.install_script.unshift Script.new(script)
+      end
+    end
+
+    enum FontType
+      Type1
+      TrueType
+      OpenType
+    end
+
+    class FontMover < Script
+      def initialize(font_path, texmf_font_dir, texmf_font_path)
+        super() do |str|
+          str << "%{__mv} %{buildroot}" << texmf_font_path <<
+            " %{buildroot}" << font_path << "\n"
+          str << "%{__ln_s} %{relative_path_p " << font_path << " " <<
+            texmf_font_dir << "} " << "%{buildroot}" << texmf_font_path << "\n"
+        end
+      end
+    end
+
+    def add_fontfile(pkg, tlpkg, path, font_type)
+      font_package_name = pkg.name + "-fonts"
+      log.debug { "Adding font file: #{path} to #{font_package_name}" }
+
+      font_dir = File.join(FONTBASEDIR, pkg.name)
+
+      font_package = packages?(font_package_name)
+      if font_package.nil?
+        log.debug { "Creating font package: #{font_package_name}" }
+        font_package = Package.new(font_package_name)
+        font_package.summary = "Severed fonts for #{pkg.name}"
+        font_package.description = <<-EOF
+        The separated fonts package for #{pkg.name}
+        EOF
+        font_package.group = "User Interface/X"
+
+        add_fc_all_excluding_conf(font_package, pkg.name)
+        add_package(font_package)
+
+        pkg.requires << RPM::Require.new(font_package_name,
+          RPM::Version.new("%{version}"), RPM::Sense::EQUAL, nil)
+      end
+
+      if font_type == FontType::Type1
+        add_fc_t1_excluding_conf(font_package, pkg.name)
+      end
+
+      font_file = File.join(font_dir, File.basename(path))
+      entry = FileEntry.new(font_file)
+      entry.is_system_font = true
+      add_file(font_package, entry)
+
+      unless pkg.install_script.any? { |x| x.is_a?(FontMover) }
+        pkg.install_script << Script.new do |str|
+          str << "%{__mkdir} -p %{buildroot}" << to_path_with_rpm(font_dir) << "\n"
+        end
+      end
+
+      rpath = to_path_with_rpm(path)
+      rdir = to_path_with_rpm(File.dirname(path))
+      rfpath = to_path_with_rpm(font_file)
+      pkg.install_script << FontMover.new(rfpath, rdir, rpath)
     end
 
     def expand_tlpdb_files(pkg : TLpsrc2spec::Package, tlpkg : TLPDB::Package,
@@ -1784,6 +1882,19 @@ module TLpsrc2spec
                     skip = true
                   end
                 end
+              when "fonts/"
+                StringCase.strcase do
+                  case pathparser
+                  when "truetype/"
+                    add_fontfile(pkg, tlpkg, xpath, FontType::TrueType)
+                  when "opentype/"
+                    add_fontfile(pkg, tlpkg, xpath, FontType::OpenType)
+                  when "type1/"
+                    if xpath.ends_with?(".pfa") || xpath.ends_with?(".pfb")
+                      add_fontfile(pkg, tlpkg, xpath, FontType::Type1)
+                    end
+                  end
+                end
               end
             end
           when ".mkisofsrc", "autorun.inf",
@@ -1872,16 +1983,19 @@ module TLpsrc2spec
       end
     end
 
-    def add_file(pkg_or_name, path, **opts)
-      if pkg_or_name.responds_to?(:files)
-        xpkg = pkg_or_name
-      else
-        xpkg = packages(pkg_or_name)
-      end
-      xpkg.files << FileEntry.new(path, **opts)
-      e = @tree.insert(path)
-      e.package = xpkg
+    def add_file(pkg : TLpsrc2spec::Package, entry : TLpsrc2spec::FileEntry)
+      pkg.files << entry
+      e = @tree.insert(entry.path)
+      e.package = pkg
       e
+    end
+
+    def add_file(pkg_name : String, entry : TLpsrc2spec::FileEntry)
+      add_file(packages(pkg_name), entry)
+    end
+
+    def add_file(pkg_or_name, path : String, **opts)
+      add_file(pkg_or_name, FileEntry.new(path, **opts))
     end
 
     def create_file_entries
@@ -2063,6 +2177,7 @@ module TLpsrc2spec
           PREFIX, DATADIR, BINDIR, LIBDIR, INCLUDEDIR,
           SHAREDSTATEDIR, LOCALSTATEDIR, SYSCONFDIR,
           MANDIR, INFODIR, PERL_VENDORLIB, PKGCONFIGDIR,
+          FONTBASEDIR, FONTCONFIG_CONFDIR, FONTCONFIG_TEMPLATEDIR
         ].each do |dir|
           ts.db_iterator(RPM::DbiTag::BaseNames, dir) do |iter|
             iter.each do |pkg|
@@ -2356,6 +2471,7 @@ module TLpsrc2spec
         log.info { "Searching obsoletion info for #{name}" }
         pkg.files.each do |entry|
           next if entry.dir?
+          next if entry.responds_to?(:is_system_font?) && entry.is_system_font?
 
           # If there is a path matches exactly, use it.
           #

@@ -178,25 +178,21 @@ module TLpsrc2spec
       write_data(io, data, **args)
     end
 
-    def write_script(io : IO, data : Script, use_heredoc : Bool = false)
+    def write_script(io : IO, data : ScriptBase | TriggerScriptBase, use_heredoc : Bool = false)
       interp = data.interpreter
       # FIXME
       marker = "EOS"
       if use_heredoc && interp
         io << interp << " <<'" << marker << "'\n"
       end
-      body = data.body
-      io << body
-      if !body.ends_with?('\n')
-        io << "\n"
-      end
+      data.body(io)
       if use_heredoc && interp
         io << marker << "\n"
       end
     end
 
     def write_tag_script(io : IO, tagname : String, master_name : String,
-                         package_name : String, data : Array(Script))
+                         package_name : String, data : Array(ScriptBase))
       if data.size > 0
         io << "\n"
         write_tag_block_hdr(io, tagname, master_name, package_name)
@@ -208,7 +204,7 @@ module TLpsrc2spec
 
     def write_tag_trigger_script(io : IO, tagname : String,
                                  master_name : String, package_name : String,
-                                 data : Array(TriggerScript))
+                                 data : Array(TriggerScriptBase))
       if data.size > 0
         io << "\n"
         data.each do |script|
