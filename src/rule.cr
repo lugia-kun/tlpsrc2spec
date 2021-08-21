@@ -48,28 +48,6 @@ module TLpsrc2spec
       @app.installed_db
     end
 
-    def installed_pkgs
-      @app.installed_db.pkgs
-    end
-
-    def installed_file_path(name : String)
-      @app.installed_db.file(name)
-    end
-
-    def installed_path_package(path : String)
-      @app.installed_db.filepath(path)
-    end
-
-    def installed_file_package(name : String)
-      files = @app.installed_db.file(name)
-      ret = {} of String => RPM::Package
-      files.each do |path|
-        pkgs = @app.installed_db.filepath(path)
-        ret.merge!(pkgs)
-      end
-      ret
-    end
-
     # Make obsolete object from RPM::Package
     def make_obsolete(rpmpkg : RPM::Package,
                       f : RPM::Sense = RPM::Sense::LESS | RPM::Sense::EQUAL)
@@ -164,12 +142,12 @@ module TLpsrc2spec
     end
 
     def obsolete_installed_pkg_if_not(obsoleter, obsolescent, **opts)
-      if (pkgs = installed_pkgs[obsolescent]?)
-        pkg = pkgs.each_value.first
+      found = false
+      installed_db.packages(obsolescent) do |pkg|
+        found = true
         obsolete_if_not(obsoleter, pkg, **opts)
-      else
-        raise InstalledPackageNotFound.new(obsolescent)
       end
+      raise InstalledPackageNotFound.new(obsolescent) unless found
     end
   end
 end

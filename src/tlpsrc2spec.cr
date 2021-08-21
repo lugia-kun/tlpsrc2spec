@@ -31,6 +31,7 @@ module TLpsrc2spec
     else
       io << entry.severity.to_s.downcase << ": " << entry.message
     end
+    io.flush
   end
 
   PREFIX         = RPM["_prefix"]
@@ -418,7 +419,8 @@ module TLpsrc2spec
     end
 
     def initialize(@tlpdb, @template, @template_data, @installed, topdir)
-      @installed_db = InstalledPackageDB.new(@installed, topdir)
+      @installed_db = InstalledPackageDB.new(topdir)
+      @installed_db.add_package(@installed)
     end
 
     def log
@@ -493,7 +495,7 @@ module TLpsrc2spec
     opts.parse(argv)
     slevel = Log::Severity.new(level)
     Log.builder.clear
-    backend = Log::IOBackend.new
+    backend = Log::IOBackend.new(dispatcher: Log::DispatchMode::Direct)
     backend.formatter = FORMATTER
     Log.builder.bind "*", slevel, backend
 

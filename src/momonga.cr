@@ -1368,12 +1368,11 @@ module TLpsrc2spec
       cleanup packages old TeX Live distribution.
       EOD
       add_package(tl_cleanup)
-      if (old_cleanup = installed_db.package?(tl_cleanup.name))
-        log.warn { "Adding existing #{tl_cleanup.name} obsoletes..." }
-        old_cleanup.each_value do |pkg|
-          pkg.obsoletes.each do |obso|
-            tl_cleanup.add_obsolete(obso)
-          end
+      log.info { "Adding existing #{tl_cleanup.name} obsoletes..." }
+      installed_db.packages(tl_cleanup.name) do |pkg|
+        pkg.obsoletes.each do |obso|
+          log.debug { "... #{obso}" }
+          tl_cleanup.add_obsolete(obso)
         end
       end
 
@@ -2177,7 +2176,7 @@ module TLpsrc2spec
           PREFIX, DATADIR, BINDIR, LIBDIR, INCLUDEDIR,
           SHAREDSTATEDIR, LOCALSTATEDIR, SYSCONFDIR,
           MANDIR, INFODIR, PERL_VENDORLIB, PKGCONFIGDIR,
-          FONTBASEDIR, FONTCONFIG_CONFDIR, FONTCONFIG_TEMPLATEDIR
+          FONTBASEDIR, FONTCONFIG_CONFDIR, FONTCONFIG_TEMPLATEDIR,
         ].each do |dir|
           ts.db_iterator(RPM::DbiTag::BaseNames, dir) do |iter|
             iter.each do |pkg|
@@ -2462,457 +2461,464 @@ module TLpsrc2spec
       make_obsolete(n, e, v, r, f, increment_release: increment_release)
     end
 
+    def obsolete_from_packages_obsoletes(pkg, rpmpkg)
+      rpmpkg.obsoletes.each do |obso|
+        name = obso.name
+        next if name == pkg.name
+        next if pkg.obsoletes.any? do |x|
+                  if x.responds_to?(:name)
+                    x.name == name
+                  else
+                    x == name
+                  end
+                end
+        obso = make_obsolete(obso)
+        log.info do
+          dnevr = obso.to_dnevr
+          "#{pkg.name} obsoletes: #{dnevr} (by package #{rpmpkg.name})"
+        end
+        pkg.add_obsolete(obso)
+      end
+      true
+    end
+
+    def obsolete_from_installed_package(pkg, installed_package : RPM::Package, *, old_path : String? = nil, new_path : String)
+      rpmpkg_name = installed_package.name
+      if rpmpkg_name == pkg.name
+        return obsolete_from_packages_obsoletes(pkg, installed_package)
+      end
+
+      return true if pkg.obsoletes.any? do |x|
+                       if x.responds_to?(:name)
+                         x.name == rpmpkg_name
+                       else
+                         x == rpmpkg_name
+                       end
+                     end
+
+      obso = make_obsolete(installed_package)
+      log.info do
+        String.build do |str|
+          str << "#{pkg.name} obsoletes: "
+          str << obso.name << "-" << obso.version.to_vre
+          if old_path
+            str << " (by file '"
+            str << old_path
+            str << "' which is assumed to be replaced by '"
+            str << new_path
+            str << "')"
+          else
+            str << " (by file '"
+            str << new_path
+            str << "')"
+          end
+        end
+      end
+      pkg.add_obsolete(obso)
+
+      obsolete_from_packages_obsoletes(pkg, installed_package)
+    end
+
+    METADIRS = [OLDTEXMFDIR, OLDTEXMFDISTDIR]
+    DOCDIRS  = METADIRS.map { |x| File.join(x, "doc") }
+
+    def basename_filter_complete_name(basename, path)
+      basename_scanner = StringCase::Single.new(basename)
+      StringCase.strcase(case_insensitive: true, complete: true) do
+        case basename_scanner
+        # for amscls / math-into-latex-4 (template file)
+        when "amsproc.template"
+          nil
+          # amscls (just in source) / amsmath (real class file)
+        when "amsdoc.cls"
+          nil
+          # for lapdf (arcs.pdf is duplicated name used in arcs)
+        when "arcs.pdf"
+          nil
+          # for asymptote
+        when "helix.asy"
+          nil
+          # for pst-marble
+        when "ex5.tex"
+          nil
+          # for texlive-es
+        when "tex-live.css"
+          nil
+          # for aastex
+        when "natnotes.tex"
+          nil
+          # for afparticle
+        when "vitruvian.jpg"
+          nil
+          # for ametstoc
+        when "template.tex"
+          nil
+          # for changebar
+        when "cbtest1.tex"
+          nil
+          # for background
+        when "background.pdf"
+          nil
+          # for classisthesis
+        when "abstract.tex"
+          nil
+          # for ketcindy
+        when "fourier.tex"
+          nil
+          # for fascicules
+        when "tikz.tex"
+          nil
+          # for url
+        when "miscdoc.sty"
+          nil
+          # arabi and poetry are not related.
+        when "poetry.sty"
+          nil
+          # maven
+        when "build.xml"
+          nil
+          # lapdf vs apprends-latex
+        when "curve.tex"
+          nil
+          # beamer (very major package used for presentations)
+        when "beamer"
+          nil
+          # pdfscreen
+        when "pdfscreen"
+          nil
+          # genmisc (plain pkg) / piff (latex pkg)
+        when "time.sty"
+          nil
+          # media9 (as runfiles) / movie15 (as docfiles)
+        when "animation.js"
+          nil
+          # skak (as docfiles) / context (as docfiles)
+        when "demo-symbols.tex"
+          nil
+          # skak (plain pkg) / lambda-lists (latex pkg)
+        when "lambda.sty"
+          nil
+          # latexmk-config file
+        when "latexmkrc"
+          nil
+          # adobemapping (map-info) / bibtexperllibs (script dir)
+        when "ToUnicode"
+          nil
+          # dozenal / misc (seems unrelated)
+        when "gray.tfm"
+          nil
+          # asymptote
+        when "tiling.asy"
+          nil
+          # dashundergaps / fewerfloatpages
+        when "l3doc-TUB.cls"
+          nil
+          # bibtopic / latex-bib[2]-ex / biblatex-philosophy
+        when "articles.bib", "natbib.cfg", "de-examples-dw.bib",
+             "philosophy-examples.bib", "biblatex-examples.bib"
+          nil
+          # language names
+        when "mongolian", "lithuanian", "latin", "german",
+             "italian.pdf", "romanian.pdf", "thai.pdf",
+             "greek-utf8.pdf", "greek-utf8.tex",
+             "bulgarian-utf8.tex", "bulgarian-koi8-r.tex",
+             "maltese-maltese.tex", "maltese-utf8.tex",
+             "ireland.jpg"
+          nil
+          # lshort-*
+        when "custom.tex", "lshort-base.tex", "math.tex",
+             "lshort.sty", "lssym.tex", "mylayout.sty",
+             "spec.tex", "things.tex", "title.tex",
+             "fancyhea.sty", "typeset.tex", "overview.tex"
+          nil
+          # revtex / revtex4
+        when "ltxgrid.pdf", "ltxutil.pdf", "docs.sty",
+             "ltxdocext.pdf", "ltxfront.pdf", "fig_1.eps",
+             "fig_2.eps", "apssamp.tex", "apssamp.bib"
+          nil
+          # quran
+        when "quran.png"
+          nil
+          # unifith / sapthesis
+        when "Laurea.tex"
+          nil
+          # thesis-qom / yazd-thesis
+        when "Print-PDF.png", "test-crop.jpg"
+          nil
+          # tabriz-thesis / yazd-thesis
+        when "chapter1.tex", "chapter2.tex", "chapter3.tex",
+             "dicen2fa.tex", "dicfa2en.tex"
+          nil
+          # apa6 / apa7
+        when "Figure1.pdf", "longsample.tex", "longsample.pdf",
+             "shortsample.tex", "shortsample.pdf"
+          nil
+          # generic names used by many packages.
+        when "layout.pdf", "introduction.tex", "index.html",
+             "appendix", "grid.tex", "chart.tex", "manual.pdf",
+             "alea.tex", "fill.tex", "ltxdoc.cfg", "rules.tex",
+             "minimal.tex", "references.bib", "translation.tex",
+             "manifest", "logo.pdf", "guide.pdf", "intro.tex",
+             "preamble.tex", "publish.tex", "test.mf", "at.pdf",
+             "fonts.tex", "preface.tex", "tableaux", "demo.tex",
+             "submit.tex", "user-guide.pdf", "listing.tex",
+             "config.tex", "help.tex", "pgfmanual-en-macros.tex",
+             "frontmatter.tex", "layout.tex", "introduction.pdf",
+             "annexe.tex", "conclusion.tex", "subeqn.tex",
+             "figure1.pdf", "bibliography.bib", "graphics.tex",
+             "metafun.tex", "cover.tex", "doc.pdf", "index.tex",
+             "summary.tex", "charpter1.tex", "references.tex",
+             "implicit.tex", "letter.tex", "cv.tex", "test.pdf",
+             "concepts.tex", "refs.bib", "main.tex", "clean.bat",
+             "ack.tex", "main.pdf", "thesis.bib", "slides.tex",
+             "mybib.bib", "hyphenation.tex", "resume.tex",
+             "biblio.tex", "compilation.tex", "glossary.tex",
+             "getversion.tex", "intro.pdf", "ggamsart.tpl",
+             "Makefile", "GNUmakefile", "index.xml", "demo.pdf",
+             "books.bib", "notes.pdf", "luatex.pdf", "make.bat",
+             "graphics.pdf", "context.html", "bib.bib", "ps.tex",
+             "header.inc", "circle.pdf", "circle.tex", "tds.tex",
+             "rotbox.png", "optional.tex", "source.tex",
+             "symbols.tex", "letter.ist", "style.css", "tex.bib",
+             "guide.tex", "curve.pdf", "geometry.pdf", "test.sh",
+             "generate.sh", "backm.tex", "book.tex", "image.pdf",
+             "eplain.tex", "description.pdf", "polynom.pdf",
+             "vector.pdf", "macros.tex", "Thumbs.db", "bibl.tpl",
+             "thesis.tex", "makedoc.sh", "glyphs.tex", "cat.eps",
+             "guitar.tex", "songbook.pdf", "appendices.tex",
+             "minimal.pdf", "bild.pdf", "list.tex", "block.tex",
+             "contrib.tex", "fontspec.pdf", "header.tex",
+             "denotation.tex", "dtx-style.sty", "invoice.tex",
+             "context.tex", "options.pdf", "intrart.tex",
+             "mathb.tex", "note1b.tex", "data1.dat", "table.tex",
+             "noteslug.tex", "sampart.tex", "minutes.pdf",
+             "franc.sty", "comment.tex", "description.tex",
+             "hyper.pdf", "manual.tex", "tiger.eps", "proba.pdf",
+             "graphic.tex", "article.tex", "publications.pdf",
+             "user-guide.tex", "table.pdf", "textmerg.tex",
+             "tipa.bib", "seminar.con", "perso.ist", "urlbst",
+             "buch.tex", "specimen.pdf", "y.tex", "body.tex",
+             "Makefile.doc", "literatur.bib",
+             "derivative.tex", "settings.tex", "thesis.pdf",
+             "reference.bib", "acknowledgements.tex",
+             "titlepage.tex", "fonttable.pdf", "review.tex",
+             "discussion.tex", "methods.tex", "spine.tex",
+             "tiger.pdf", "specimen.tex", "MyReferences.bib"
+          nil
+        else
+          path
+        end
+      end
+    end
+
+    def basename_filter(basename, path)
+      basename_scanner = StringCase::Single.new(basename)
+      # Begging of filename matching
+      StringCase.strcase(case_insensitive: true) do
+        case basename_scanner
+        when "README", "LICENSE", "LICENCE", "COPYING", "LEGAL",
+             "COPYRIGHT", "CHANGES", "VERSION", "ChangeLog",
+             "INSTALL", "ABOUT", "NEWS", "THANKS", "TODO",
+             "AUTHORS", "BACKLOG", "FONTLOG", "FAQ", "ANNOUNCE",
+             "NOTICE", "HISTORY", "MANIFEST", "00readme",
+             "LISTOFFILES", "LIESMICH", "RELEASE", "CATALOG",
+             "LISEZMOI", "READ.ME", "01install", "CONTRIBUTING",
+             "CONTRIBUTORS",
+             "OFL", "GPL", "lppl", "fdl", "GUST-FONT-LICENSE",
+             "sample", "example", "exemple",
+             "appendix", "opentype", "truetype",
+             "logo"
+          nil
+          # /[0-9][0-9-]*\.ltx.*/
+        when "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
+          pos = basename_scanner.pos
+          while true
+            case yych
+            when '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
+                 '-'
+            else
+              basename_scanner.pos = pos
+              break
+            end
+            pos = basename_scanner.pos
+            yych = basename_scanner.next_char
+          end
+          StringCase.strcase(case_insensitive: true) do
+            case basename_scanner
+            when ".ltx"
+              nil
+            else
+              basename_filter_complete_name(basename, path)
+            end
+          end
+
+          # /(chap|test|fig|note)[0-9]*\.(tex|pdf)/
+        when "chap", "test", "fig", "note"
+          pos = basename_scanner.pos
+          yych = basename_scanner.next_char
+          while true
+            case yych
+            when '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'
+            else
+              basename_scanner.pos = pos
+              break
+            end
+            pos = basename_scanner.pos
+            yych = basename_scanner.next_char
+          end
+          StringCase.strcase(case_insensitive: true, complete: true) do
+            case basename_scanner
+            when ".tex", ".pdf"
+              nil
+            else
+              basename_filter_complete_name(basename, path)
+            end
+          end
+
+          # /cv_template_(en|it|de|pl)\.(tex|pdf)/
+        when "cv_template_"
+          StringCase.strcase(case_insensitive: true) do
+            case basename_scanner
+            when "en", "it", "de", "pl"
+              StringCase.strcase(case_insensitive: true, complete: true) do
+                case basename_scanner
+                when ".tex", ".pdf"
+                  nil
+                else
+                  basename_filter_complete_name(basename, path)
+                end
+              end
+            else
+              basename_filter_complete_name(basename, path)
+            end
+          end
+        else
+          basename_filter_complete_name(basename, path)
+        end
+      end
+    end
+
+    def obsolete_with_fuzzy_match(path, candidates, rpmpkg)
+      pathparts = Path.new(path).parts
+      max_score = 1
+      max_score_cand = nil
+      max_score_entry = nil
+      log.debug { "Looking for new packages which can obsolete file #{path}..." }
+      logdata = {} of String => Int32
+      candidates.each do |cand|
+        next unless cand.package
+        score = 0
+        citer = cand
+        oiter = pathparts.reverse_each
+        while citer.name == oiter.next
+          score += 1
+          citer = citer.parent
+        end
+        if score > max_score
+          new_path = cand.path
+          new_path_entry = cand.package.not_nil!.files.find do |entry|
+            entry.path == new_path
+          end
+          next unless new_path_entry
+
+          # Do not cross-site (for runfiles, exclude `TEXMF/doc`,
+          # for docfiles, include only `TEXMF/doc`) files.
+          case new_path_entry.tlpdb_tag
+          when TLPDB::Tag::RUNFILES
+            next if DOCDIRS.any? { |dir| path.starts_with?(dir) }
+            next unless METADIRS.any? { |dir| path.starts_with?(dir) }
+          when TLPDB::Tag::DOCFILES
+            next unless DOCDIRS.any? { |dir| path.starts_with?(dir) }
+          else
+            next
+          end
+          max_score = score
+          max_score_cand = cand
+          max_score_entry = new_path_entry
+        end
+        logdata[cand.path] = score
+      end
+      max_score_path = nil
+      if max_score_cand
+        max_score_path = max_score_cand.path
+      end
+      logdata.each do |path, score|
+        log.debug do
+          String.build do |str|
+            if score == max_score
+              if path == max_score_path
+                str << "* "
+              else
+                str << "- "
+              end
+            else
+              str << "  "
+            end
+            str << path << " (score: " << score << ")"
+          end
+        end
+      end
+
+      if max_score_path && max_score_entry && max_score_cand
+        # For the paths whose score is less than or equal to 3,
+        # accept that path only if its basename of ths path is NOT
+        # the one of specific one.
+        if max_score <= 3
+          basename = File.basename(path)
+          path = basename_filter(basename, path)
+        end
+        if path
+          log.debug { "Using path   '#{max_score_entry.path}'" }
+          log.debug { "... provides '#{max_score_path}'" }
+          pkg = max_score_cand.package
+          obsolete_from_installed_package(pkg.not_nil!, rpmpkg, new_path: max_score_entry.path, old_path: max_score_path)
+        end
+      end
+    end
+
+    def obsolete_with_path(path, old_package, basename_table)
+      if fnode = @tree[path]?
+        if new_pkg = fnode.package
+          obsolete_from_installed_package(new_pkg, old_package, new_path: path)
+        else
+          log.warn { "No package owns #{path} (added manually?)" }
+        end
+      else
+        basename = File.basename(path)
+        candidates = basename_table[basename]?
+        if candidates
+          obsolete_with_fuzzy_match(path, candidates, old_package)
+        else
+          log.debug { "No obsoletion candidates for #{path}" }
+        end
+      end
+    end
+
     def obsolete_old_packages
       log.info { "Creating obsoletion entries" }
       metadirs = [OLDTEXMFDIR, OLDTEXMFDISTDIR]
       docdirs = metadirs.map { |x| File.join(x, "doc") }
-      each_package do |pkg|
-        name = pkg.name
-        log.info { "Searching obsoletion info for #{name}" }
-        pkg.files.each do |entry|
-          next if entry.dir?
-          next if entry.responds_to?(:is_system_font?) && entry.is_system_font?
 
-          # If there is a path matches exactly, use it.
-          #
-          # For srcfiles and binfiles, only use exact matching.
-          #
-          installed_pkgs = installed_path_package(entry.path)
-          if installed_pkgs.empty? &&
-             (entry.tlpdb_tag == TLPDB::Tag::RUNFILES ||
-             entry.tlpdb_tag == TLPDB::Tag::DOCFILES)
-            basename = File.basename(entry.path)
-            paths = installed_file_path(basename)
-
-            # Do not cross-site (for runfiles, exclude `TEXMF/doc`,
-            # for docfiles, include only `TEXMF/doc`) files.
-            if entry.tlpdb_tag == TLPDB::Tag::RUNFILES
-              filter = Proc(String, Bool).new do |path|
-                if docdirs.any? { |dir| path.starts_with?(dir) }
-                  true
-                elsif metadirs.any? { |dir| path.starts_with?(dir) }
-                  false
-                else
-                  true
-                end
-              end
-            else
-              filter = Proc(String, Bool).new do |path|
-                if docdirs.any? { |dir| path.starts_with?(dir) }
-                  false
-                else
-                  true
-                end
-              end
-            end
-
-            # Compute the path matching score.
-            #
-            # Score is the number of path elements where same. So, for
-            # `/a/b/c/d/e` and `/a/b/x/d/e`, the score will be 2 (`d`
-            # and `e`).
-            #
-            # Use the path with the maximum score.
-            #
-            pathparts = Path.new(entry.path).parts
-            h_map = paths.compact_map do |path|
-              if filter.call(path)
-                nil
-              else
-                xparts = Path.new(path).parts
-                a = pathparts.reverse_each
-                b = xparts.reverse_each
-                i = 0
-                aa = ""
-                bb = ""
-                while aa == bb
-                  aa = a.next
-                  bb = b.next
-                  if aa.is_a?(Iterator::Stop) || bb.is_a?(Iterator::Stop)
-                    break
-                  end
-                  i += 1
-                end
-                {path, i}
-              end
-            end
-            found = nil
-            if h_map.size > 0
-              found = h_map.max_by do |ent|
-                ent[1]
-              end
-            end
-            h_map.each do |ent|
-              log.debug do
-                String.build do |builder|
-                  builder << " --> "
-                  if found && ent[0] == found[0]
-                    builder << "* "
-                  else
-                    builder << "  "
-                  end
-                  builder << ent[0] << " (score: " << ent[1] << ")"
-                end
-              end
-            end
-            path = nil
-
-            # For the paths whose score is less than or equal to 3,
-            # accept that path only if its basename of ths path is NOT
-            # the one of specific one.
-            #
-            if found
-              if found[1] <= 3
-                basename = StringCase::Single.new(found[0])
-                xpos = 0
-                until basename.eof?
-                  ch = basename.next_char
-                  if ch == '/'
-                    xpos = basename.pos
-                  end
-                end
-                basename.pos = xpos
-                check_complete_filename = false
-                # Begging of filename matching
-                StringCase.strcase(case_insensitive: true) do
-                  case basename
-                  # README and common names
-                  when "README", "LICENSE", "LICENCE", "COPYING", "LEGAL",
-                       "COPYRIGHT", "CHANGES", "VERSION", "ChangeLog",
-                       "INSTALL", "ABOUT", "NEWS", "THANKS", "TODO",
-                       "AUTHORS", "BACKLOG", "FONTLOG", "FAQ", "ANNOUNCE",
-                       "NOTICE", "HISTORY", "MANIFEST", "00readme",
-                       "LISTOFFILES", "LIESMICH", "RELEASE", "CATALOG",
-                       "LISEZMOI", "READ.ME", "01install", "CONTRIBUTING",
-                       "CONTRIBUTORS"
-                    nil
-                    # License filename
-                  when "OFL", "GPL", "lppl", "fdl", "GUST-FONT-LICENSE"
-                    nil
-                    # example
-                  when "sample", "example", "exemple"
-                    nil
-                    # appendix
-                  when "appendix"
-                    nil
-                    # opentype
-                  when "opentype", "truetype"
-                    nil
-                    # logo
-                  when "logo"
-                    nil
-                    # /[0-9][0-9-]*\.ltx.*/
-                  when "1", "2", "3", "4", "5", "6", "7", "8", "9", "0"
-                    pos = xpos
-                    while true
-                      case yych
-                      when '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
-                           '-'
-                      else
-                        basename.pos = pos
-                        break
-                      end
-                      pos = basename.pos
-                      yych = basename.next_char
-                    end
-                    StringCase.strcase(case_insensitive: true) do
-                      case basename
-                      when ".ltx"
-                        nil
-                      else
-                        check_complete_filename = true
-                      end
-                    end
-
-                    # /(chap|test|fig|note)[0-9]*\.(tex|pdf)/
-                  when "chap", "test", "fig", "note"
-                    pos = basename.pos
-                    yych = basename.next_char
-                    while true
-                      case yych
-                      when '1', '2', '3', '4', '5', '6', '7', '8', '9', '0'
-                      else
-                        basename.pos = pos
-                        break
-                      end
-                      pos = basename.pos
-                      yych = basename.next_char
-                    end
-                    StringCase.strcase(case_insensitive: true, complete: true) do
-                      case basename
-                      when ".tex", ".pdf"
-                        nil
-                      else
-                        check_complete_filename = true
-                      end
-                    end
-
-                    # /cv_template_(en|it|de|pl)\.(tex|pdf)/
-                  when "cv_template_"
-                    StringCase.strcase(case_insensitive: true) do
-                      case basename
-                      when "en", "it", "de", "pl"
-                        StringCase.strcase(case_insensitive: true, complete: true) do
-                          case basename
-                          when ".tex", ".pdf"
-                            nil
-                          else
-                            check_complete_filename = true
-                          end
-                        end
-                      else
-                        check_complete_filename = true
-                      end
-                    end
-                  else
-                    check_complete_filename = true
-                  end
-                end
-                if check_complete_filename
-                  # complete file name
-                  basename.pos = xpos
-                  StringCase.strcase(case_insensitive: true, complete: true) do
-                    case basename
-                    # for amscls / math-into-latex-4 (template file)
-                    when "amsproc.template"
-                      nil
-                      # amscls (just in source) / amsmath (real class file)
-                    when "amsdoc.cls"
-                      nil
-                      # for lapdf (arcs.pdf is duplicated name used in arcs)
-                    when "arcs.pdf"
-                      nil
-                      # for asymptote
-                    when "helix.asy"
-                      nil
-                      # for pst-marble
-                    when "ex5.tex"
-                      nil
-                      # for texlive-es
-                    when "tex-live.css"
-                      nil
-                      # for aastex
-                    when "natnotes.tex"
-                      nil
-                      # for afparticle
-                    when "vitruvian.jpg"
-                      nil
-                      # for ametstoc
-                    when "template.tex"
-                      nil
-                      # for changebar
-                    when "cbtest1.tex"
-                      nil
-                      # for background
-                    when "background.pdf"
-                      nil
-                      # for classisthesis
-                    when "abstract.tex"
-                      nil
-                      # for ketcindy
-                    when "fourier.tex"
-                      nil
-                      # for fascicules
-                    when "tikz.tex"
-                      nil
-                      # for url
-                    when "miscdoc.sty"
-                      nil
-                      # arabi and poetry are not related.
-                    when "poetry.sty"
-                      nil
-                      # maven
-                    when "build.xml"
-                      nil
-                      # lapdf vs apprends-latex
-                    when "curve.tex"
-                      nil
-                      # beamer (very major package used for presentations)
-                    when "beamer"
-                      nil
-                      # pdfscreen
-                    when "pdfscreen"
-                      nil
-                      # genmisc (plain pkg) / piff (latex pkg)
-                    when "time.sty"
-                      nil
-                      # media9 (as runfiles) / movie15 (as docfiles)
-                    when "animation.js"
-                      nil
-                      # skak (as docfiles) / context (as docfiles)
-                    when "demo-symbols.tex"
-                      nil
-                      # skak (plain pkg) / lambda-lists (latex pkg)
-                    when "lambda.sty"
-                      nil
-                      # latexmk-config file
-                    when "latexmkrc"
-                      nil
-                      # adobemapping (map-info) / bibtexperllibs (script dir)
-                    when "ToUnicode"
-                      nil
-                      # dozenal / misc (seems unrelated)
-                    when "gray.tfm"
-                      nil
-                      # asymptote
-                    when "tiling.asy"
-                      nil
-                      # dashundergaps / fewerfloatpages
-                    when "l3doc-TUB.cls"
-                      nil
-                      # bibtopic / latex-bib[2]-ex / biblatex-philosophy
-                    when "articles.bib", "natbib.cfg", "de-examples-dw.bib",
-                         "philosophy-examples.bib", "biblatex-examples.bib"
-                      nil
-                      # language names
-                    when "mongolian", "lithuanian", "latin", "german",
-                         "italian.pdf", "romanian.pdf", "thai.pdf",
-                         "greek-utf8.pdf", "greek-utf8.tex",
-                         "bulgarian-utf8.tex", "bulgarian-koi8-r.tex",
-                         "maltese-maltese.tex", "maltese-utf8.tex",
-                         "ireland.jpg"
-                      nil
-                      # lshort-*
-                    when "custom.tex", "lshort-base.tex", "math.tex",
-                         "lshort.sty", "lssym.tex", "mylayout.sty",
-                         "spec.tex", "things.tex", "title.tex",
-                         "fancyhea.sty", "typeset.tex", "overview.tex"
-                      nil
-                      # revtex / revtex4
-                    when "ltxgrid.pdf", "ltxutil.pdf", "docs.sty",
-                         "ltxdocext.pdf", "ltxfront.pdf", "fig_1.eps",
-                         "fig_2.eps", "apssamp.tex", "apssamp.bib"
-                      nil
-                      # quran
-                    when "quran.png"
-                      nil
-                      # unifith / sapthesis
-                    when "Laurea.tex"
-                      nil
-                      # thesis-qom / yazd-thesis
-                    when "Print-PDF.png", "test-crop.jpg"
-                      nil
-                      # tabriz-thesis / yazd-thesis
-                    when "chapter1.tex", "chapter2.tex", "chapter3.tex",
-                         "dicen2fa.tex", "dicfa2en.tex"
-                      nil
-                      # apa6 / apa7
-                    when "Figure1.pdf", "longsample.tex", "longsample.pdf",
-                         "shortsample.tex", "shortsample.pdf"
-                      nil
-                      # generic names used by many packages.
-                    when "layout.pdf", "introduction.tex", "index.html",
-                         "appendix", "grid.tex", "chart.tex", "manual.pdf",
-                         "alea.tex", "fill.tex", "ltxdoc.cfg", "rules.tex",
-                         "minimal.tex", "references.bib", "translation.tex",
-                         "manifest", "logo.pdf", "guide.pdf", "intro.tex",
-                         "preamble.tex", "publish.tex", "test.mf", "at.pdf",
-                         "fonts.tex", "preface.tex", "tableaux", "demo.tex",
-                         "submit.tex", "user-guide.pdf", "listing.tex",
-                         "config.tex", "help.tex", "pgfmanual-en-macros.tex",
-                         "frontmatter.tex", "layout.tex", "introduction.pdf",
-                         "annexe.tex", "conclusion.tex", "subeqn.tex",
-                         "figure1.pdf", "bibliography.bib", "graphics.tex",
-                         "metafun.tex", "cover.tex", "doc.pdf", "index.tex",
-                         "summary.tex", "charpter1.tex", "references.tex",
-                         "implicit.tex", "letter.tex", "cv.tex", "test.pdf",
-                         "concepts.tex", "refs.bib", "main.tex", "clean.bat",
-                         "ack.tex", "main.pdf", "thesis.bib", "slides.tex",
-                         "mybib.bib", "hyphenation.tex", "resume.tex",
-                         "biblio.tex", "compilation.tex", "glossary.tex",
-                         "getversion.tex", "intro.pdf", "ggamsart.tpl",
-                         "Makefile", "GNUmakefile", "index.xml", "demo.pdf",
-                         "books.bib", "notes.pdf", "luatex.pdf", "make.bat",
-                         "graphics.pdf", "context.html", "bib.bib", "ps.tex",
-                         "header.inc", "circle.pdf", "circle.tex", "tds.tex",
-                         "rotbox.png", "optional.tex", "source.tex",
-                         "symbols.tex", "letter.ist", "style.css", "tex.bib",
-                         "guide.tex", "curve.pdf", "geometry.pdf", "test.sh",
-                         "generate.sh", "backm.tex", "book.tex", "image.pdf",
-                         "eplain.tex", "description.pdf", "polynom.pdf",
-                         "vector.pdf", "macros.tex", "Thumbs.db", "bibl.tpl",
-                         "thesis.tex", "makedoc.sh", "glyphs.tex", "cat.eps",
-                         "guitar.tex", "songbook.pdf", "appendices.tex",
-                         "minimal.pdf", "bild.pdf", "list.tex", "block.tex",
-                         "contrib.tex", "fontspec.pdf", "header.tex",
-                         "denotation.tex", "dtx-style.sty", "invoice.tex",
-                         "context.tex", "options.pdf", "intrart.tex",
-                         "mathb.tex", "note1b.tex", "data1.dat", "table.tex",
-                         "noteslug.tex", "sampart.tex", "minutes.pdf",
-                         "franc.sty", "comment.tex", "description.tex",
-                         "hyper.pdf", "manual.tex", "tiger.eps", "proba.pdf",
-                         "graphic.tex", "article.tex", "publications.pdf",
-                         "user-guide.tex", "table.pdf", "textmerg.tex",
-                         "tipa.bib", "seminar.con", "perso.ist", "urlbst",
-                         "buch.tex", "specimen.pdf", "y.tex", "body.tex",
-                         "Makefile.doc", "literatur.bib",
-                         "derivative.tex", "settings.tex", "thesis.pdf",
-                         "reference.bib", "acknowledgements.tex",
-                         "titlepage.tex", "fonttable.pdf", "review.tex",
-                         "discussion.tex", "methods.tex", "spine.tex",
-                         "tiger.pdf", "specimen.tex", "MyReferences.bib"
-                      nil
-                    else
-                      path = found[0]
-                    end
-                  end
-                end
-              else
-                path = found[0]
-              end
-            end
-            if path
-              log.debug { "Using path   '#{path}'" }
-              log.debug { "... provides '#{entry.path}'" }
-              installed_pkgs = installed_path_package(path)
-            end
+      log.debug { "Creating basename table for installed packages" }
+      basename_table = {} of String => Array(FileNode)
+      @tree.each_entry_breadth do |entry|
+        unless entry.is_a?(DirectoryNode)
+          if !basename_table.has_key?(entry.name)
+            basename_table[entry.name] = [entry]
+          else
+            basename_table[entry.name] << entry
           end
-          installed_pkgs.each do |x, rpmpkg|
-            if rpmpkg.name != pkg.name
-              if !pkg.obsoletes.any? do |x|
-                   if x.responds_to?(:name)
-                     x.name == rpmpkg.name
-                   else
-                     x == rpmpkg.name
-                   end
-                 end
-                obso = make_obsolete(rpmpkg)
-                log.info do
-                  String.build do |str|
-                    str << " ... obsoletes: "
-                    str << obso.name << "-" << obso.version.to_vre
-                    if path
-                      str << " (by file '"
-                      str << path
-                      str << "' which is assumed to be replaced by '"
-                      str << entry.path
-                      str << "')"
-                    else
-                      str << " (by file '"
-                      str << entry.path
-                      str << "')"
-                    end
-                  end
-                end
-                pkg.add_obsolete(obso)
-              end
-            end
-            rpmpkg.obsoletes.each do |obso|
-              name = obso.name
-              next if name == pkg.name
-              next if pkg.obsoletes.any? do |x|
-                        if x.responds_to?(:name)
-                          x.name == name
-                        else
-                          x == name
-                        end
-                      end
-              obso = make_obsolete(obso)
-              dnevr = obso.to_dnevr
-              log.info do
-                " ... obsoletes: #{dnevr} (by package #{rpmpkg.name})"
-              end
-              pkg.add_obsolete(obso)
+        end
+      end
+
+      installed_db.each_package do |rpmpkg|
+        if pkg = packages?(rpmpkg.name)
+          obsolete_from_packages_obsoletes(pkg, rpmpkg)
+        else
+          log.info { "Searching packages that can obsolete #{rpmpkg.name}" }
+          rpmpkg.files.each do |file|
+            if file.type != ::File::Type::Directory
+              obsolete_with_path(file.path, rpmpkg, basename_table)
             end
           end
         end
@@ -2978,12 +2984,10 @@ module TLpsrc2spec
     def check_obsoletes
       log.info { "Finding packages which won't be obsoleted..." }
       cleanup = packages("cleanup-packages-texlive")
-      cset = installed_db.each_package.to_set
       obsoleted_by = {} of String => Set(TLpsrc2spec::Package)
       found_obsoletes = Set(String).new
       each_package do |pkg|
         found_obsoletes.add(pkg.name)
-        rem = [] of (String | RPM::Dependency)
         pkg.obsoletes.each do |obso|
           if obso.responds_to?(:name)
             name = obso.name
@@ -2991,24 +2995,6 @@ module TLpsrc2spec
             name = obso
           end
           found_obsoletes.add(name)
-          m = cset.find do |opkg|
-            name == opkg.name
-          end
-          if m.nil?
-            ipkg = nil
-            RPM.transaction do |ts|
-              ts.db_iterator(RPM::DbiTag::Name, name) do |iter|
-                ipkg = iter.first?
-              end
-            end
-            if ipkg
-              log.warn { "Unexpected obsoletes: #{name} by #{pkg.name}" }
-              rem << obso
-            end
-          end
-        end
-        rem.each do |obso|
-          pkg.obsoletes.delete(obso)
         end
         pkg.obsoletes.each do |obso|
           if obso.responds_to?(:name)
@@ -3023,7 +3009,7 @@ module TLpsrc2spec
           end
         end
       end
-      installed_db.each_base_package do |pkg|
+      installed_db.each_package do |pkg|
         if found_obsoletes.includes?(pkg.name)
           next
         end
@@ -3031,54 +3017,62 @@ module TLpsrc2spec
         log.warn { "Nothing obsoletes #{obso.name}-#{obso.version.to_vre}" }
         log.debug { "Adding obsolete #{pkg.name} for #{cleanup.name}" }
         cleanup.add_obsolete(obso)
-        pkg.obsoletes.each do |opkg|
-          log.debug { "Adding obsolete #{opkg.name} for #{cleanup.name}" }
-          cleanup.add_obsolete(make_obsolete(opkg))
+        obsolete_from_packages_obsoletes(cleanup, pkg)
+      end
+
+      log.info { "Forward obsoletion info" }
+      each_package do |pkg|
+        if pkg.obsoletes.size > 0
+          log.info { "- '#{pkg.name}' will obsolete:" }
+          pkg.obsoletes.each do |dep|
+            log.info do
+              if dep.responds_to?(:to_dnevr)
+                "  * #{dep.to_dnevr}"
+              else
+                "  * #{dep}"
+              end
+            end
+          end
         end
       end
 
       log.info { "Reverse obsoletion info" }
       obsoleted_by.each do |name, pkgs|
         if pkgs.size > 0
-          log.info { "'#{name}' will be obsoleted by:" }
+          log.info { "- '#{name}' will be obsoleted by:" }
           pkgs.each do |pkg|
-            log.info { " * #{pkg.name}" }
+            log.info { "  * #{pkg.name}" }
           end
         end
       end
 
       if (newtljap = packages?("texlive-japanese-recommended"))
-        RPM.transaction do |ts|
-          ts.db_iterator(RPM::DbiTag::Name, "texlive-japanese-recommended") do |iter|
-            tljap = iter.first?
-            if tljap
-              log.info { "'texlive-japanese-recommended' will install:" }
-              tljap.requires.each do |req|
-                name = req.name
-                if (whatobsoletes = obsoleted_by[name]?)
-                  whatobsoletes.each do |provider|
-                    pname = provider.name
-                    if !newtljap.requires.any? do |x|
-                         pname == x
-                       end
-                      log.info { "  * #{pname}" }
-                      newtljap.add_require make_require(provider)
-                    end
-                  end
-                elsif (whatprovides = packages?(name))
-                  if !newtljap.requires.any? do |x|
-                       name == x
-                     end
-                    log.info { "  * #{name}" }
-                    newtljap.add_require make_require(whatprovides)
-                  end
-                elsif !name.starts_with?("rpmlib")
-                  log.warn { "  ... Nothing found which provides #{name}" }
+        if (tljap = installed_db.packages?("texlive-japanese-recommended"))
+          log.info { "'texlive-japanese-recommended' will install:" }
+          tljap.requires.each do |req|
+            name = req.name
+            if (whatobsoletes = obsoleted_by[name]?)
+              whatobsoletes.each do |provider|
+                pname = provider.name
+                if !newtljap.requires.any? do |x|
+                     pname == x
+                   end
+                  log.info { "  * #{pname}" }
+                  newtljap.add_require make_require(provider)
                 end
               end
-              log.info { "(end)" }
+            elsif (whatprovides = packages?(name))
+              if !newtljap.requires.any? do |x|
+                   name == x
+                 end
+                log.info { "  * #{name}" }
+                newtljap.add_require make_require(whatprovides)
+              end
+            elsif !name.starts_with?("rpmlib")
+              log.warn { "  ... Nothing found which provides #{name}" }
             end
           end
+          log.info { "(end)" }
         end
       end
     end
