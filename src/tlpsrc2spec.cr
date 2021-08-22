@@ -31,6 +31,7 @@ module TLpsrc2spec
     else
       io << entry.severity.to_s.downcase << ": " << entry.message
     end
+    io.flush
   end
 
   PREFIX         = RPM["_prefix"]
@@ -45,7 +46,12 @@ module TLpsrc2spec
   MANDIR         = RPM["_mandir"]
   INFODIR        = RPM["_infodir"]
   PERL_VENDORLIB = RPM["perl_vendorlib"]
-  PKGCONFIGDIR   = File.join(LIBDIR, "pkgconfig")
+
+  FONTBASEDIR            = RPM["_fontbasedir"]
+  FONTCONFIG_CONFDIR     = RPM["_fontconfig_confdir"]
+  FONTCONFIG_TEMPLATEDIR = RPM["_fontconfig_templatedir"]
+
+  PKGCONFIGDIR = File.join(LIBDIR, "pkgconfig")
 
   OLDTEXMFDIR       = `kpsewhich -var-value TEXMFMAIN`.chomp
   OLDTEXMFDISTDIR   = `kpsewhich -var-value TEXMFDIST`.chomp
@@ -161,9 +167,14 @@ module TLpsrc2spec
   alias Dependency = String | RPM::Dependency
   alias DependencySet = Array(Dependency)
 
-  class Script
-    property body : String
+  module ScriptCommon
     property interpreter : String? = nil
+
+    abstract def body(io : IO)
+  end
+
+  module TextScript
+    property body : String
 
     def initialize(@body, *, @interpreter = nil)
     end
@@ -173,17 +184,37 @@ module TLpsrc2spec
         yield io
       end
     end
+
+    def body(io : IO)
+      io.puts @body
+    end
   end
 
-  class TriggerScript < Script
+  abstract class ScriptBase
+    include ScriptCommon
+  end
+
+  class Script < ScriptBase
+    include TextScript
+  end
+
+  abstract class TriggerScriptBase
+    include ScriptCommon
+
     property trigger_by : DependencySet
 
-    def initialize(body, *, @trigger_by, **args)
-      super(body, **args)
+    def initialize(*, @trigger_by)
+    end
+  end
+
+  class TriggerScript < TriggerScriptBase
+    include TextScript
+
+    def initialize(@body, *, @trigger_by, @interpreter = nil)
     end
 
-    def initialize(*, @trigger_by, **args, &block)
-      super(**args, &block)
+    def initialize(*, @trigger_by, @interpreter = nil, &blk)
+      initialize(&blk)
     end
   end
 
@@ -196,16 +227,16 @@ module TLpsrc2spec
     property version : String?
     property release : String?
     property files : Array(FileEntry)
-    property post : Array(Script)
-    property postun : Array(Script)
-    property pre : Array(Script)
-    property preun : Array(Script)
-    property pretrans : Array(Script)
-    property posttrans : Array(Script)
-    property triggerin : Array(TriggerScript)
-    property triggerun : Array(TriggerScript)
-    property install_script : Array(Script)
-    property build_script : Array(Script)
+    property post : Array(ScriptBase)
+    property postun : Array(ScriptBase)
+    property pre : Array(ScriptBase)
+    property preun : Array(ScriptBase)
+    property pretrans : Array(ScriptBase)
+    property posttrans : Array(ScriptBase)
+    property triggerin : Array(TriggerScriptBase)
+    property triggerun : Array(TriggerScriptBase)
+    property install_script : Array(ScriptBase)
+    property build_script : Array(ScriptBase)
     property tlpdb_pkgs : Array(TLPDB::Package)
     property requires : DependencySet
     property obsoletes : DependencySet
@@ -218,13 +249,14 @@ module TLpsrc2spec
                    @url = nil, @archdep = false,
                    @version = nil, @license = ([] of String),
                    @release = nil, @files = ([] of FileEntry),
-                   @pre = ([] of Script), @post = ([] of Script),
-                   @postun = ([] of Script), @preun = ([] of Script),
-                   @pretrans = ([] of Script), @posttrans = ([] of Script),
-                   @triggerin = ([] of TriggerScript),
-                   @triggerun = ([] of TriggerScript),
-                   @install_script = ([] of Script),
-                   @build_script = ([] of Script),
+                   @pre = ([] of ScriptBase), @post = ([] of ScriptBase),
+                   @postun = ([] of ScriptBase), @preun = ([] of ScriptBase),
+                   @pretrans = ([] of ScriptBase),
+                   @posttrans = ([] of ScriptBase),
+                   @triggerin = ([] of TriggerScriptBase),
+                   @triggerun = ([] of TriggerScriptBase),
+                   @install_script = ([] of ScriptBase),
+                   @build_script = ([] of ScriptBase),
                    @tlpdb_pkgs = ([] of TLPDB::Package),
                    @requires = DependencySet.new,
                    @obsoletes = DependencySet.new,
@@ -387,7 +419,8 @@ module TLpsrc2spec
     end
 
     def initialize(@tlpdb, @template, @template_data, @installed, topdir)
-      @installed_db = InstalledPackageDB.new(@installed, topdir)
+      @installed_db = InstalledPackageDB.new(topdir)
+      @installed_db.add_package(@installed)
     end
 
     def log
@@ -454,7 +487,7 @@ module TLpsrc2spec
         end
       end
       opts.on("-h", "--help", "Show this help") do
-        STDERR.print opts
+        STDERR.puts opts
         exit 1
       end
     end
@@ -462,7 +495,7 @@ module TLpsrc2spec
     opts.parse(argv)
     slevel = Log::Severity.new(level)
     Log.builder.clear
-    backend = Log::IOBackend.new
+    backend = Log::IOBackend.new(dispatcher: Log::DispatchMode::Direct)
     backend.formatter = FORMATTER
     Log.builder.bind "*", slevel, backend
 
