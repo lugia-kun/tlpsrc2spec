@@ -4,7 +4,7 @@
 
 Creates RPM Spec file (except for %prep, %build and %install sections) from ~~tlpsrc~~ tlpdb files.
 
-Currently, this program is only for [Momonga Linux](http://www.momonga-linux.org/). If you want to use this framework for your distribution, it is already ready to do this. Please open an issue to request this.
+Currently, this program is only for [Momonga Linux](http://www.momonga-linux.org/). If you want to use this framework for your distribution, it is already ready to separate the framework and the code specific to Momonga Linux. Please open an issue to request this.
 
 ## Installation
 
